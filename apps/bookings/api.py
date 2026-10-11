@@ -123,6 +123,9 @@ def _booking_queryset():
 class AvailabilityView(APIView):
     """Free start times for a set of services, for one day or a week."""
 
+    # Public and read-only: ignore any admin session so no CSRF token is needed.
+    authentication_classes = []
+
     def post(self, request):
         data = AvailabilityRequestSerializer(data=request.data)
         data.is_valid(raise_exception=True)
@@ -165,6 +168,8 @@ class BookingCreateView(APIView):
 class BookingByTokenView(generics.RetrieveAPIView):
     """A booking opened from the link in the confirmation email (no login needed)."""
 
+    authentication_classes = []  # the secret token is the authorisation
+
     serializer_class = BookingWithTokenSerializer
     lookup_field = "cancel_token"
     lookup_url_kwarg = "token"
@@ -174,6 +179,8 @@ class BookingByTokenView(generics.RetrieveAPIView):
 
 
 class BookingCancelView(APIView):
+    authentication_classes = []  # the secret token is the authorisation
+
     def post(self, request, token):
         booking = get_object_or_404(_booking_queryset(), cancel_token=token)
         data = CancelSerializer(data=request.data)

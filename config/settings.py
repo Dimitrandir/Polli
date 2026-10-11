@@ -18,6 +18,10 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-m
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]
 
+# Origins allowed to send unsafe requests with the session cookie (the frontend).
+_DEFAULT_FRONTEND = "http://localhost:3000,http://127.0.0.1:3000"
+CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", _DEFAULT_FRONTEND).split(",") if o]
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

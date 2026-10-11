@@ -97,12 +97,25 @@ function messageFrom(body: unknown): string {
   return FALLBACK;
 }
 
+/** Django's CSRF cookie. It exists when someone (e.g. salon staff) is logged in to the admin in this browser. */
+export function csrfToken(cookie: string = typeof document === "undefined" ? "" : document.cookie): string | null {
+  const match = cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = init?.method && init.method !== "GET" ? csrfToken() : null;
   let response: Response;
   try {
     response = await fetch(`${BASE}${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", Accept: "application/json", ...init?.headers },
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(token ? { "X-CSRFToken": token } : {}),
+        ...init?.headers,
+      },
     });
   } catch {
     throw new ApiError("Няма връзка със сървъра. Проверете интернет връзката си.", 0);

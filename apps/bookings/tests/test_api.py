@@ -140,3 +140,48 @@ class BookingApiTests(ApiTestCase):
         history = self.api.get(reverse("api:my-bookings")).json()
         self.assertEqual(len(history), 1)
         self.assertEqual(Client.objects.get(user=user).phone, "+359877000111")
+
+
+class LoggedInStaffTests(ApiTestCase):
+    """The salon staff are often logged in to the admin in the same browser.
+
+    The admin session cookie is sent to the frontend too (cookies ignore the port),
+    so the public booking flow must keep working with it, with real CSRF checks on.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.api = APIClient(enforce_csrf_checks=True)
+        admin = get_user_model().objects.create_superuser("admin", "admin@example.com", "x")
+        self.api.force_login(admin)
+        self.frontend = {"HTTP_ORIGIN": "http://localhost:3000"}
+
+    def test_availability_needs_no_csrf_token(self):
+        response = self.api.post(
+            reverse("api:availability"),
+            {"date": self.day.isoformat(), "items": [{"service": self.colour.pk}]},
+            format="json",
+            **self.frontend,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+    def test_booking_with_csrf_token_from_the_frontend(self):
+        self.api.get(reverse("admin:index"))  # sets the csrftoken cookie, as the admin login does
+        token = self.api.cookies["csrftoken"].value
+        response = self.api.post(
+            reverse("api:booking-create"),
+            self.booking_payload(),
+            format="json",
+            HTTP_X_CSRFTOKEN=token,
+            **self.frontend,
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+
+    def test_booking_without_csrf_token_is_refused(self):
+        response = self.api.post(reverse("api:booking-create"), self.booking_payload(), format="json", **self.frontend)
+        self.assertEqual(response.status_code, 403)
+
+    def test_cancel_by_token_needs_no_csrf_token(self):
+        booking = self.book(self.poli, self.colour, at(self.day, 9))
+        response = self.api.post(reverse("api:booking-cancel", args=[booking.cancel_token]), **self.frontend)
+        self.assertEqual(response.status_code, 200, response.content)
