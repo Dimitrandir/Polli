@@ -1,6 +1,6 @@
 ---
 {
-  "title": "Privacy Policy",
+  "title": "Политика за поверителност",
   "slug": "poveritelnost",
   "source_url": "https://sisesthetics.com/privacy-policy/"
 }
