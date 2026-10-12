@@ -11,11 +11,12 @@ class SpecialistServiceSerializer(serializers.Serializer):
 
 
 class SpecialistSerializer(serializers.ModelSerializer):
+    photo = serializers.ImageField(read_only=True, use_url=True)
     services = serializers.SerializerMethodField()
 
     class Meta:
         model = Specialist
-        fields = ["id", "name", "title", "bio", "services"]
+        fields = ["id", "name", "title", "bio", "photo", "services"]
 
     def get_services(self, specialist):
         rows = [ss for ss in specialist.specialist_services.all() if ss.service.is_active]
