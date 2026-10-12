@@ -1,7 +1,7 @@
 // Layout maths for the staff day calendar (Studio24 style: a column per specialist, a block per visit).
 
 import { SALON_TZ } from "./format";
-import type { DaySchedule, StaffBooking, StaffItem } from "./staff-api";
+import type { DaySchedule, StaffBooking } from "./staff-api";
 
 /** Column colours when a specialist has none set in the admin, close to Studio24's. */
 export const PALETTE = ["#7cb342", "#1565c0", "#ab1fa8", "#ef6c00", "#00897b", "#c62828", "#6d4c41", "#3949ab"];
@@ -49,23 +49,31 @@ export function salonDateTime(day: string, minutes: number): string {
   return `${day}T${clockLabel(minutes)}:00`;
 }
 
-/** Hours shown on the grid: from the earliest start to the latest end of the day, 09–19 when empty. */
-export function visibleHours(schedule: DaySchedule): { from: number; to: number } {
+/** Hours shown on the grid: from the earliest start to the latest end, 09–19 when there is nothing. */
+export function hourRange(spans: { date: string; start: string; end: string }[]): { from: number; to: number } {
   let from = Infinity;
   let to = -Infinity;
-  const take = (start: string, end: string) => {
-    from = Math.min(from, minutesInDay(start, schedule.date));
-    to = Math.max(to, minutesInDay(end, schedule.date));
-  };
-  for (const s of schedule.specialists) for (const w of s.working) take(w.start, w.end);
-  for (const b of schedule.bookings) for (const i of b.items) take(i.start, i.end);
+  for (const span of spans) {
+    from = Math.min(from, minutesInDay(span.start, span.date));
+    to = Math.max(to, minutesInDay(span.end, span.date));
+  }
   if (from === Infinity) return { from: 9, to: 19 };
   return { from: Math.floor(from / 60), to: Math.max(Math.ceil(to / 60), Math.floor(from / 60) + 1) };
+}
+
+export function visibleHours(schedule: DaySchedule): { from: number; to: number } {
+  const date = schedule.date;
+  return hourRange([
+    ...schedule.specialists.flatMap((s) => s.working.map((w) => ({ date, ...w }))),
+    ...schedule.bookings.flatMap((b) => b.items.map((i) => ({ date, start: i.start, end: i.end }))),
+  ]);
 }
 
 export type Block = {
   key: string;
   booking: StaffBooking;
+  /** The first service of the block: the one that is grabbed when dragging. */
+  item: number;
   specialist: number;
   start: number;
   end: number;
@@ -79,42 +87,42 @@ export type Block = {
  * One block per visit and specialist, like Studio24: services that follow each other at the same
  * specialist are merged ("Маникюр с лак, Педикюр"). A gap between them starts a new block.
  */
-export function buildBlocks(schedule: DaySchedule): Map<number, Block[]> {
-  const columns = new Map<number, Block[]>(schedule.specialists.map((s) => [s.id, []]));
-  for (const booking of schedule.bookings) {
-    const bySpecialist = new Map<number, StaffItem[]>();
-    for (const item of booking.items) {
-      if (!columns.has(item.specialist)) continue;
-      bySpecialist.set(item.specialist, [...(bySpecialist.get(item.specialist) ?? []), item]);
-    }
-    for (const [specialist, items] of bySpecialist) {
-      items.sort((a, b) => a.start.localeCompare(b.start));
-      let current: Block | null = null;
-      for (const item of items) {
-        const start = minutesInDay(item.start, schedule.date);
-        const end = minutesInDay(item.end, schedule.date);
-        if (end <= start) continue; // not on this day
-        if (current && start <= current.end) {
-          current.end = Math.max(current.end, end);
-          current.services.push(item.service_name);
-        } else {
-          current = {
-            key: `${booking.id}-${item.id}`,
-            booking,
-            specialist,
-            start,
-            end,
-            services: [item.service_name],
-            lane: 0,
-            lanes: 1,
-          };
-          columns.get(specialist)!.push(current);
-        }
+export function columnBlocks(bookings: StaffBooking[], date: string, specialist: number): Block[] {
+  const blocks: Block[] = [];
+  for (const booking of bookings) {
+    const items = booking.items
+      .filter((i) => i.specialist === specialist)
+      .sort((a, b) => a.start.localeCompare(b.start));
+    let current: Block | null = null;
+    for (const item of items) {
+      const start = minutesInDay(item.start, date);
+      const end = minutesInDay(item.end, date);
+      if (end <= start) continue; // not on this day
+      if (current && start <= current.end) {
+        current.end = Math.max(current.end, end);
+        current.services.push(item.service_name);
+      } else {
+        current = {
+          key: `${booking.id}-${item.id}`,
+          booking,
+          item: item.id,
+          specialist,
+          start,
+          end,
+          services: [item.service_name],
+          lane: 0,
+          lanes: 1,
+        };
+        blocks.push(current);
       }
     }
   }
-  for (const blocks of columns.values()) assignLanes(blocks);
-  return columns;
+  assignLanes(blocks);
+  return blocks;
+}
+
+export function buildBlocks(schedule: DaySchedule): Map<number, Block[]> {
+  return new Map(schedule.specialists.map((s) => [s.id, columnBlocks(schedule.bookings, schedule.date, s.id)]));
 }
 
 /** Put overlapping blocks next to each other (normally they never overlap, but the admin allows it). */
@@ -137,6 +145,13 @@ function assignLanes(blocks: Block[]) {
     clusterEnd = Math.max(clusterEnd, block.end);
   }
   if (cluster.length) close();
+}
+
+/** Header text for a week: "19 – 25 ОКТ" or "28 СЕП – 4 ОКТ". */
+export function weekTitle(monday: string, sunday: string): string {
+  const a = headerDate(monday).day.split(" ");
+  const b = headerDate(sunday).day.split(" ");
+  return a[1] === b[1] ? `${a[0]} – ${b[0]} ${b[1]}` : `${a[0]} ${a[1]} – ${b[0]} ${b[1]}`;
 }
 
 /** Round a tap on the grid down to the 15-minute line above it. */

@@ -10,6 +10,7 @@ import {
   snapMinutes,
   specialistColor,
   visibleHours,
+  weekTitle,
 } from "./calendar";
 import type { DaySchedule, StaffBooking, StaffItem } from "./staff-api";
 
@@ -106,6 +107,19 @@ describe("calendar", () => {
       [1, 2],
       [0, 1],
     ]);
+  });
+
+  it("writes the week title", () => {
+    expect(weekTitle("2026-10-19", "2026-10-25")).toBe("19 – 25 ОКТ");
+    expect(weekTitle("2026-09-28", "2026-10-04")).toBe("28 СЕП – 4 ОКТ");
+  });
+
+  it("remembers which service a block starts with (it is the one dragged)", () => {
+    const visit = booking(1, [
+      item(7, 1, `${DAY}T10:00:00+03:00`, `${DAY}T11:00:00+03:00`),
+      item(8, 1, `${DAY}T11:00:00+03:00`, `${DAY}T12:00:00+03:00`),
+    ]);
+    expect(buildBlocks(schedule([visit])).get(1)![0].item).toBe(7);
   });
 
   it("writes the header date like Studio24", () => {

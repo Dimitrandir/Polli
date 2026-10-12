@@ -8,14 +8,11 @@ export type StaffSession = { authenticated: boolean; user: StaffUser | null };
 
 export type Interval = { start: string; end: string };
 
-export type DaySpecialist = {
-  id: number;
-  name: string;
-  color: string;
-  is_online_bookable: boolean;
-  working: Interval[];
-  time_off: (Interval & { reason: string })[];
-};
+export type TimeOff = Interval & { id: number; reason: string };
+
+export type StaffSpecialist = { id: number; name: string; color: string; is_online_bookable: boolean };
+
+export type DaySpecialist = StaffSpecialist & { working: Interval[]; time_off: TimeOff[] };
 
 export type StaffClient = {
   id: number;
@@ -59,6 +56,16 @@ export type DaySchedule = {
   bookings: StaffBooking[];
 };
 
+export type WeekSchedule = {
+  /** Monday of the week. */
+  start: string;
+  timezone: string;
+  specialist: number | null;
+  specialists: StaffSpecialist[];
+  days: { date: string; working: Interval[]; time_off: TimeOff[] }[];
+  bookings: StaffBooking[];
+};
+
 export type StaffService = {
   id: number;
   name: string;
@@ -86,6 +93,10 @@ export const staffApi = {
     request<StaffSession>("/staff/login", json("POST", { username, password })),
   logout: () => request<StaffSession>("/staff/logout", json("POST", {})),
   day: (date: string) => request<DaySchedule>(`/staff/day?date=${encodeURIComponent(date)}`),
+  week: (date: string, specialist: number | null) =>
+    request<WeekSchedule>(
+      `/staff/week?date=${encodeURIComponent(date)}${specialist ? `&specialist=${specialist}` : ""}`,
+    ),
   services: () => request<StaffService[]>("/staff/services"),
   clients: (q: string) => request<StaffClient[]>(`/staff/clients?q=${encodeURIComponent(q)}`),
   createBooking: (payload: NewStaffBooking) => request<StaffBooking>("/staff/bookings", json("POST", payload)),
@@ -93,4 +104,10 @@ export const staffApi = {
     request<StaffBooking>(`/staff/bookings/${id}`, json("PATCH", changes)),
   cancelBooking: (id: number, reason = "") =>
     request<StaffBooking>(`/staff/bookings/${id}/cancel`, json("POST", { reason })),
+  /** Drag and drop: `item` is the grabbed service, `start` its new salon time without an offset. */
+  moveBooking: (id: number, move: { item: number; start: string; specialist: number }) =>
+    request<StaffBooking>(`/staff/bookings/${id}/move`, json("POST", move)),
+  createTimeOff: (block: { specialist: number; start: string; end: string; reason: string }) =>
+    request<TimeOff>("/staff/time-off", json("POST", block)),
+  deleteTimeOff: (id: number) => request<null>(`/staff/time-off/${id}`, { method: "DELETE" }),
 };

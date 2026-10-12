@@ -7,6 +7,7 @@ like in Studio24.
 from datetime import date, time, timedelta
 
 from django.contrib.auth import authenticate, login, logout
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -25,7 +26,7 @@ from apps.staff.models import Specialist, SpecialistService, TimeOff
 from apps.staff.schedule import aware, working_intervals
 
 from .availability import BookingError, ItemRequest
-from .models import Booking, BookingSource, BookingStatus, CancelledBy
+from .models import OCCUPYING_STATUSES, Booking, BookingItem, BookingSource, BookingStatus, CancelledBy
 from .services import cancel_booking, create_booking
 
 CLIENT_SEARCH_LIMIT = 20
@@ -149,48 +150,89 @@ class StaffLogoutView(APIView):
 # --- calendar --------------------------------------------------------------------
 
 
+def _date_param(request, name="date"):
+    try:
+        return date.fromisoformat(request.query_params.get(name, ""))
+    except ValueError:
+        return timezone.localdate()
+
+
+def _day_bounds(day):
+    start = aware(day, time.min)
+    return start, aware(day + timedelta(days=1), time.min)
+
+
+def _hours_and_time_off(specialist_ids, day):
+    """Working intervals and time off (clamped to the day) per specialist for one date."""
+    day_start, day_end = _day_bounds(day)
+    hours = working_intervals(specialist_ids, day)
+    result = {sid: {"working": [_interval(a, b) for a, b in hours[sid]], "time_off": []} for sid in specialist_ids}
+    for t in TimeOff.objects.filter(specialist_id__in=specialist_ids, start__lt=day_end, end__gt=day_start):
+        result[t.specialist_id]["time_off"].append(
+            {"id": t.pk, **_interval(max(t.start, day_start), min(t.end, day_end)), "reason": t.reason}
+        )
+    return result
+
+
+def _active_bookings(specialist_ids, start, end):
+    return (
+        _bookings()
+        .filter(items__specialist_id__in=specialist_ids, items__start_at__lt=end, items__end_at__gt=start)
+        .exclude(status=BookingStatus.CANCELLED)
+        .distinct()
+        .order_by("start_at")
+    )
+
+
+def _specialist_payload(s):
+    return {"id": s.pk, "name": s.name, "color": s.color, "is_online_bookable": s.is_online_bookable}
+
+
 class StaffDayView(APIView):
     """Everything the day calendar needs: a column per specialist with hours, time off and bookings."""
 
     permission_classes = [IsSalonStaff]
 
     def get(self, request):
-        try:
-            day = date.fromisoformat(request.query_params.get("date", ""))
-        except ValueError:
-            day = timezone.localdate()
-        day_start = aware(day, time.min)
-        day_end = day_start + timedelta(days=1)
-
+        day = _date_param(request)
         specialists = list(Specialist.objects.filter(is_active=True))
         ids = [s.pk for s in specialists]
-        hours = working_intervals(ids, day)
-        time_off = TimeOff.objects.filter(specialist_id__in=ids, start__lt=day_end, end__gt=day_start)
-        bookings = (
-            _bookings()
-            .filter(items__specialist_id__in=ids, items__start_at__lt=day_end, items__end_at__gt=day_start)
-            .exclude(status=BookingStatus.CANCELLED)
-            .distinct()
-            .order_by("start_at")
-        )
+        per_specialist = _hours_and_time_off(ids, day)
         return Response(
             {
                 "date": day.isoformat(),
                 "timezone": str(timezone.get_current_timezone()),
-                "specialists": [
-                    {
-                        "id": s.pk,
-                        "name": s.name,
-                        "color": s.color,
-                        "is_online_bookable": s.is_online_bookable,
-                        "working": [_interval(a, b) for a, b in hours[s.pk]],
-                        "time_off": [
-                            {**_interval(max(t.start, day_start), min(t.end, day_end)), "reason": t.reason}
-                            for t in time_off
-                            if t.specialist_id == s.pk
-                        ],
-                    }
-                    for s in specialists
+                "specialists": [{**_specialist_payload(s), **per_specialist[s.pk]} for s in specialists],
+                "bookings": StaffBookingSerializer(_active_bookings(ids, *_day_bounds(day)), many=True).data,
+            }
+        )
+
+
+class StaffWeekView(APIView):
+    """One specialist's week (Monday to Sunday): a column per day, like Studio24's week view."""
+
+    permission_classes = [IsSalonStaff]
+
+    def get(self, request):
+        monday = _date_param(request)
+        monday -= timedelta(days=monday.weekday())
+        specialists = list(Specialist.objects.filter(is_active=True))
+        if not specialists:
+            return Response(
+                {"start": monday.isoformat(), "specialist": None, "specialists": [], "days": [], "bookings": []}
+            )
+        wanted = request.query_params.get("specialist", "")
+        specialist = next((s for s in specialists if str(s.pk) == wanted), specialists[0])
+        days = [monday + timedelta(days=n) for n in range(7)]
+        bookings = _active_bookings([specialist.pk], _day_bounds(days[0])[0], _day_bounds(days[-1])[1])
+        return Response(
+            {
+                "start": monday.isoformat(),
+                "timezone": str(timezone.get_current_timezone()),
+                "specialist": specialist.pk,
+                "specialists": [_specialist_payload(s) for s in specialists],
+                "days": [
+                    {"date": d.isoformat(), **_hours_and_time_off([specialist.pk], d)[specialist.pk]} for d in days
                 ],
                 "bookings": StaffBookingSerializer(bookings, many=True).data,
             }
@@ -354,3 +396,121 @@ class StaffBookingCancelView(APIView):
         except BookingError as exc:
             return _error(str(exc))
         return Response(StaffBookingSerializer(booking).data)
+
+
+class StaffMoveSerializer(serializers.Serializer):
+    item = serializers.IntegerField(help_text="Услугата, която е хваната и преместена (първата в блока).")
+    start = serializers.DateTimeField(help_text="Новото начало на тази услуга.")
+    specialist = serializers.PrimaryKeyRelatedField(queryset=Specialist.objects.filter(is_active=True))
+
+
+def _conflict(specialist, start, busy_until, booking_id):
+    """Why `specialist` cannot take [start, busy_until), or None."""
+    clash = (
+        BookingItem.objects.filter(
+            specialist=specialist,
+            booking__status__in=OCCUPYING_STATUSES,
+            start_at__lt=busy_until,
+            busy_until__gt=start,
+        )
+        .exclude(booking_id=booking_id)
+        .select_related("booking__client")
+        .first()
+    )
+    if clash:
+        return (
+            f"{specialist.name} има час с {clash.booking.client.full_name} "
+            f"{timezone.localtime(clash.start_at):%H:%M}–{timezone.localtime(clash.end_at):%H:%M}."
+        )
+    if TimeOff.objects.filter(specialist=specialist, start__lt=busy_until, end__gt=start).exists():
+        return f"{specialist.name} отсъства по това време."
+    day = timezone.localtime(start).date()
+    if not any(a <= start and busy_until <= b for a, b in working_intervals([specialist.pk], day)[specialist.pk]):
+        return f"{specialist.name} не работи по това време. Сменете работното време от админ панела, ако е нужно."
+    return None
+
+
+class StaffBookingMoveView(APIView):
+    """Drag and drop: shift a visit in time and optionally hand the dragged part to another specialist."""
+
+    permission_classes = [IsSalonStaff]
+
+    def post(self, request, pk):
+        data = StaffMoveSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        v = data.validated_data
+        with transaction.atomic():
+            booking = get_object_or_404(Booking.objects.select_for_update(), pk=pk)
+            if booking.status != BookingStatus.CONFIRMED:
+                return _error("Може да се местят само потвърдени часове.")
+            items = list(booking.items.select_related("service", "specialist"))
+            moved = next((i for i in items if i.pk == v["item"]), None)
+            if moved is None:
+                return _error("Услугата не е от тази резервация.")
+            delta = v["start"] - moved.start_at
+            source, target = moved.specialist, v["specialist"]
+            specialist_ids = sorted({i.specialist_id for i in items} | {target.pk})
+            list(Specialist.objects.select_for_update().filter(id__in=specialist_ids).order_by("id"))
+
+            for item in items:
+                if item.specialist_id == source.pk and target != source:
+                    if not SpecialistService.objects.filter(specialist=target, service=item.service).exists():
+                        return _error(f"{target.name} не извършва услугата „{item.service.name}“.")
+                    item.specialist = target
+                item.start_at += delta
+                item.end_at += delta
+                item.busy_until += delta
+            # Every service of the visit moves by the same amount, so they keep their order.
+            for item in items:
+                problem = _conflict(item.specialist, item.start_at, item.busy_until, booking.pk)
+                if problem:
+                    return _error(problem)
+            BookingItem.objects.bulk_update(items, ["specialist", "start_at", "end_at", "busy_until"])
+            booking.refresh_time_range()
+        return Response(StaffBookingSerializer(_bookings().get(pk=pk)).data)
+
+
+class StaffTimeOffSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TimeOff
+        fields = ["id", "specialist", "start", "end", "reason"]
+
+    def validate(self, data):
+        if data["end"] <= data["start"]:
+            raise serializers.ValidationError("Краят трябва да е след началото.")
+        clash = (
+            BookingItem.objects.filter(
+                specialist=data["specialist"],
+                booking__status=BookingStatus.CONFIRMED,
+                start_at__lt=data["end"],
+                end_at__gt=data["start"],
+            )
+            .select_related("booking__client")
+            .first()
+        )
+        if clash:
+            raise serializers.ValidationError(
+                f"В този интервал има час с {clash.booking.client.full_name} "
+                f"({timezone.localtime(clash.start_at):%H:%M}). Преместете го първо."
+            )
+        return data
+
+
+class StaffTimeOffCreateView(APIView):
+    """Block time in a specialist's column (a break, an errand, a day off)."""
+
+    permission_classes = [IsSalonStaff]
+
+    def post(self, request):
+        data = StaffTimeOffSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        data.save()
+        return Response(data.data, status=status.HTTP_201_CREATED)
+
+
+class StaffTimeOffDetailView(APIView):
+    permission_classes = [IsSalonStaff]
+
+    def delete(self, request, pk):
+        get_object_or_404(TimeOff, pk=pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

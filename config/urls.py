@@ -33,11 +33,15 @@ api_urlpatterns = [
     path("staff/login/", team_api.StaffLoginView.as_view(), name="staff-login"),
     path("staff/logout/", team_api.StaffLogoutView.as_view(), name="staff-logout"),
     path("staff/day/", team_api.StaffDayView.as_view(), name="staff-day"),
+    path("staff/week/", team_api.StaffWeekView.as_view(), name="staff-week"),
     path("staff/services/", team_api.StaffServicesView.as_view(), name="staff-services"),
     path("staff/clients/", team_api.StaffClientSearchView.as_view(), name="staff-clients"),
     path("staff/bookings/", team_api.StaffBookingCreateView.as_view(), name="staff-booking-create"),
     path("staff/bookings/<int:pk>/", team_api.StaffBookingDetailView.as_view(), name="staff-booking-detail"),
     path("staff/bookings/<int:pk>/cancel/", team_api.StaffBookingCancelView.as_view(), name="staff-booking-cancel"),
+    path("staff/bookings/<int:pk>/move/", team_api.StaffBookingMoveView.as_view(), name="staff-booking-move"),
+    path("staff/time-off/", team_api.StaffTimeOffCreateView.as_view(), name="staff-time-off-create"),
+    path("staff/time-off/<int:pk>/", team_api.StaffTimeOffDetailView.as_view(), name="staff-time-off-detail"),
 ]
 
 urlpatterns = [
