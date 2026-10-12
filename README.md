@@ -32,6 +32,10 @@ Backend (Django + Django REST Framework + PostgreSQL) за сайта и сис�
 | GET | `/api/bookings/<token>/` | Резервация по линк от имейла |
 | POST | `/api/bookings/<token>/cancel/` | Отказ от клиента (до 24 ч. преди часа) |
 | GET | `/api/me/bookings/` | История на влезлия клиент |
+| GET | `/api/salon/` | Контакти, социални мрежи, работно време (`weekday` 0 = понеделник), условия при резервация |
+| GET | `/api/articles/?tag=<таг>` | Статии, най-новите първи (без текста) |
+| GET | `/api/articles/<slug>/` | Една статия с текста (Markdown) |
+| GET | `/api/pages/<slug>/` | Страница: `za-nas`, `obshti-usloviya`, `poveritelnost` |
 
 Пример за свободни часове (маникюр и боядисване едновременно, боядисването – при конкретен специалист):
 
@@ -52,18 +56,33 @@ docker compose up -d                 # PostgreSQL 16 (или свой PostgreSQL
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
 python manage.py migrate
-python manage.py load_demo_data      # примерни услуги и специалисти
+python manage.py import_site_content # истинското съдържание от sisesthetics.com (или load_demo_data за примерни данни)
 python manage.py createsuperuser
 python manage.py runserver           # админ: http://localhost:8000/admin/
 ```
 
 Тестове и проверки: `python manage.py test`, `ruff check . && ruff format --check .`
 
+## Съдържание от стария сайт
+
+`data/old-site/` съдържа съдържанието на sisesthetics.com, изтеглено на 12.10.2026: 41 услуги в 9 групи с цени и
+продължителност от резервационния модул, описанията от страница „Услуги“, тримата специалисти с биографии и снимки,
+контакти и работно време, 31 статии и страниците „За нас“, „Общи условия“ и „Поверителност“.
+
+`python manage.py import_site_content` го зарежда в базата. Командата може да се пуска многократно: добавя само
+липсващото и не пипа промените, направени в админа. С `--overwrite` връща всичко към данните от файловете.
+
+Цените на стария сайт са в лева; в `catalog.json` са преизчислени в евро по курс 1.95583 (полето `price_bgn` пази
+оригинала). Продължителностите са от резервационния модул, който на места се различава от страница „Услуги“.
+Работното време на специалистите е взето от това на салона като начало. Снимките в статиите още сочат към стария сайт.
+
 ## Структура
 
 - `apps/catalog` – категории, групи, услуги
 - `apps/staff` – специалисти, услуги на специалист, работно време, специален график, отсъствия, ресурси
 - `apps/clients` – клиенти, блокиране, нормализиране на телефони
+- `apps/salon` – контакти, работно време и условия на салона
+- `apps/content` – статии и страници, командата `import_site_content`
 - `apps/bookings` – резервации, `availability.py` (изчисляване на свободните часове), `services.py` (създаване и отказ)
 
 ## Следващи стъпки

@@ -1,0 +1,7 @@
+from django.apps import AppConfig
+
+
+class SalonConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.salon"
+    verbose_name = "Салон"

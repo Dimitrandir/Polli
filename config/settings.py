@@ -34,6 +34,8 @@ INSTALLED_APPS = [
     "apps.staff",
     "apps.clients",
     "apps.bookings",
+    "apps.salon",
+    "apps.content",
 ]
 
 MIDDLEWARE = [
@@ -91,6 +93,10 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Uploaded files such as specialists' photos.
+MEDIA_URL = "media/"
+MEDIA_ROOT = Path(os.environ.get("DJANGO_MEDIA_ROOT", BASE_DIR / "media"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

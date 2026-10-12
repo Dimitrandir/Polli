@@ -34,6 +34,7 @@ class Specialist(models.Model):
     name = models.CharField("име", max_length=150)
     title = models.CharField("позиция", max_length=150, blank=True, help_text="Напр. „Колорист, трихолог“.")
     bio = models.TextField("представяне", blank=True)
+    photo = models.ImageField("снимка", upload_to="specialists/", blank=True)
     services = models.ManyToManyField(
         "catalog.Service", through="SpecialistService", related_name="specialists", verbose_name="услуги"
     )
