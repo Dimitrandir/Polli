@@ -65,7 +65,7 @@ class StaffClientSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Client
-        fields = ["id", "name", "first_name", "last_name", "phone", "email", "notes", "is_blocked"]
+        fields = ["id", "name", "first_name", "last_name", "nickname", "phone", "email", "notes", "is_blocked"]
 
 
 class StaffItemSerializer(serializers.Serializer):
@@ -222,7 +222,10 @@ class StaffServicesView(APIView):
 
 
 class StaffClientSearchView(APIView):
-    """Find a client by name, phone or email (for a new booking)."""
+    """Find a client by name, nickname, phone or email (for a new booking).
+
+    The nickname is what the team calls the client ("Митко" finds Петър Стайков).
+    """
 
     permission_classes = [IsSalonStaff]
 
@@ -230,9 +233,9 @@ class StaffClientSearchView(APIView):
         query = request.query_params.get("q", "").strip()
         if len(query) < 2:
             return Response([])
-        condition = Q(email__icontains=query)
+        condition = Q(email__icontains=query) | Q(nickname__icontains=query)
         for word in query.split():
-            condition |= Q(first_name__icontains=word) | Q(last_name__icontains=word)
+            condition |= Q(first_name__icontains=word) | Q(last_name__icontains=word) | Q(nickname__icontains=word)
         digits = "".join(ch for ch in query if ch.isdigit())
         if len(digits) >= 3:
             # Phones are stored as +359888123456; "0888 12" should match too.

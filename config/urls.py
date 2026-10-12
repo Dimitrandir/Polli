@@ -3,9 +3,12 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from apps.accounts import api as accounts_api
 from apps.bookings import api as bookings_api
 from apps.bookings import staff_api as team_api
 from apps.catalog import api as catalog_api
+from apps.clients import api as clients_api
+from apps.clients import staff_api as team_clients_api
 from apps.content import api as content_api
 from apps.salon import api as salon_api
 from apps.staff import api as staff_api
@@ -23,6 +26,15 @@ api_urlpatterns = [
     path("bookings/", bookings_api.BookingCreateView.as_view(), name="booking-create"),
     path("bookings/<uuid:token>/", bookings_api.BookingByTokenView.as_view(), name="booking-detail"),
     path("bookings/<uuid:token>/cancel/", bookings_api.BookingCancelView.as_view(), name="booking-cancel"),
+    # Client accounts.
+    path("auth/session/", accounts_api.SessionView.as_view(), name="auth-session"),
+    path("auth/email/", accounts_api.EmailCodeRequestView.as_view(), name="auth-email"),
+    path("auth/email/verify/", accounts_api.EmailCodeLoginView.as_view(), name="auth-email-verify"),
+    path("auth/google/", accounts_api.GoogleLoginView.as_view(), name="auth-google"),
+    path("auth/logout/", accounts_api.LogoutView.as_view(), name="auth-logout"),
+    path("me/", clients_api.ProfileView.as_view(), name="me"),
+    path("me/export/", clients_api.ExportView.as_view(), name="me-export"),
+    path("me/messages/", clients_api.MyMessagesView.as_view(), name="me-messages"),
     path("me/bookings/", bookings_api.MyBookingsView.as_view(), name="my-bookings"),
     path("salon/", salon_api.SalonInfoView.as_view(), name="salon"),
     path("articles/", content_api.ArticleListView.as_view(), name="article-list"),
@@ -35,6 +47,15 @@ api_urlpatterns = [
     path("staff/day/", team_api.StaffDayView.as_view(), name="staff-day"),
     path("staff/services/", team_api.StaffServicesView.as_view(), name="staff-services"),
     path("staff/clients/", team_api.StaffClientSearchView.as_view(), name="staff-clients"),
+    path("staff/clients/<int:pk>/", team_clients_api.StaffClientDetailView.as_view(), name="staff-client"),
+    path("staff/clients/<int:pk>/notes/", team_clients_api.StaffClientNotesView.as_view(), name="staff-client-notes"),
+    path(
+        "staff/clients/<int:pk>/messages/",
+        team_clients_api.StaffClientMessagesView.as_view(),
+        name="staff-client-messages",
+    ),
+    path("staff/notes/<int:pk>/", team_clients_api.StaffNoteDetailView.as_view(), name="staff-note"),
+    path("staff/messages/", team_clients_api.StaffInboxView.as_view(), name="staff-inbox"),
     path("staff/bookings/", team_api.StaffBookingCreateView.as_view(), name="staff-booking-create"),
     path("staff/bookings/<int:pk>/", team_api.StaffBookingDetailView.as_view(), name="staff-booking-detail"),
     path("staff/bookings/<int:pk>/cancel/", team_api.StaffBookingCancelView.as_view(), name="staff-booking-cancel"),
