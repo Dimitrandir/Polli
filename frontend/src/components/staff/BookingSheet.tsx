@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import { ApiError } from "@/lib/api";
 import { formatLongDate, formatPrice, formatTime } from "@/lib/format";
-import { staffApi, type DaySpecialist, type StaffBooking } from "@/lib/staff-api";
+import { staffApi, type StaffSpecialist, type StaffBooking } from "@/lib/staff-api";
 
 import { ClientSheet } from "./ClientSheet";
 import { Field, inputClass, Sheet } from "./Sheet";
@@ -24,7 +24,7 @@ export function BookingSheet({
   onChanged,
 }: {
   booking: StaffBooking;
-  specialists: DaySpecialist[];
+  specialists: StaffSpecialist[];
   onClose: () => void;
   onChanged: () => void;
 }) {

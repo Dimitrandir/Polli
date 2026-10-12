@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/lib/api";
 import { clockLabel, salonDateTime } from "@/lib/calendar";
 import { formatDuration, formatLongDate, formatPrice } from "@/lib/format";
-import { staffApi, type DaySpecialist, type NewClient, type StaffClient, type StaffService } from "@/lib/staff-api";
+import { staffApi, type StaffSpecialist, type NewClient, type StaffClient, type StaffService } from "@/lib/staff-api";
 
 import { Field, inputClass, Sheet } from "./Sheet";
 
@@ -22,7 +22,7 @@ export function NewBookingSheet({
   onCreated,
 }: {
   draft: NewBookingDraft;
-  specialists: DaySpecialist[];
+  specialists: StaffSpecialist[];
   services: StaffService[];
   onClose: () => void;
   onCreated: () => void;
@@ -34,6 +34,9 @@ export function NewBookingSheet({
   const [client, setClient] = useState<StaffClient | null>(null);
   const [newClient, setNewClient] = useState<NewClient | null>(null);
   const [note, setNote] = useState("");
+  const [kind, setKind] = useState<"booking" | "block">("booking");
+  const [blockEnd, setBlockEnd] = useState(clockLabel(Math.min(draft.minutes + 60, 24 * 60 - 1)));
+  const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +68,30 @@ export function NewBookingSheet({
     setChosen((ids) => ids.filter((sid) => services.some((s) => s.id === sid && s.specialists.some((o) => o.id === id))));
   }
 
+  async function saveBlock() {
+    setError(null);
+    const [eh, em] = blockEnd.split(":").map(Number);
+    const endMinutes = eh * 60 + em;
+    if (endMinutes <= startMinutes) return setError("Краят трябва да е след началото.");
+    setSaving(true);
+    try {
+      await staffApi.createTimeOff({
+        specialist,
+        start: salonDateTime(draft.date, startMinutes),
+        end: salonDateTime(draft.date, endMinutes),
+        reason: reason.trim(),
+      });
+      onCreated();
+      onClose();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Нещо се обърка. Опитайте отново.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function save() {
+    if (kind === "block") return saveBlock();
     setError(null);
     if (!selected.length) return setError("Изберете поне една услуга.");
     if (!client && !(newClient && newClient.first_name.trim() && newClient.phone.trim())) {
@@ -91,12 +117,14 @@ export function NewBookingSheet({
 
   return (
     <Sheet
-      title="Нов час"
+      title={kind === "block" ? "Блокирай време" : "Нов час"}
       onClose={onClose}
       footer={
         <div className="flex items-center gap-3">
           <div className="flex-1 text-sm text-neutral-600">
-            {selected.length ? (
+            {kind === "block" ? (
+              `${time} – ${blockEnd}`
+            ) : selected.length ? (
               <>
                 {time} – {clockLabel(Math.min(startMinutes + duration, 24 * 60 - 1))} · {formatDuration(duration)} ·{" "}
                 <span className="font-semibold text-neutral-900">{formatPrice(total)}</span>
@@ -117,6 +145,28 @@ export function NewBookingSheet({
       }
     >
       <div className="space-y-4">
+        <div role="tablist" className="grid grid-cols-2 rounded-xl bg-neutral-100 p-1 text-sm font-semibold">
+          {(
+            [
+              ["booking", "Час"],
+              ["block", "Блокирай време"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              role="tab"
+              aria-selected={kind === value}
+              onClick={() => {
+                setKind(value);
+                setError(null);
+              }}
+              className={`rounded-lg py-2 ${kind === value ? "bg-white text-neutral-900 shadow" : "text-neutral-500"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-[1fr_auto] gap-3">
           <Field label="Специалист">
             <select value={specialist} onChange={(e) => changeSpecialist(Number(e.target.value))} className={inputClass}>
@@ -139,6 +189,35 @@ export function NewBookingSheet({
           </Field>
         </div>
 
+        {kind === "block" ? (
+          <>
+            <Field label="До">
+              <input
+                type="time"
+                step={300}
+                required
+                value={blockEnd}
+                onChange={(e) => e.target.value && setBlockEnd(e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Причина">
+              <input value={reason} onChange={(e) => setReason(e.target.value)} className={inputClass} />
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              {["Почивка", "Обедна почивка", "Лично", "Обучение"].map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setReason(r)}
+                  className="rounded-full border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
         <div>
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Услуги</span>
           {selected.length > 0 && (
@@ -209,6 +288,9 @@ export function NewBookingSheet({
         <Field label="Вътрешна бележка">
           <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} className={inputClass} />
         </Field>
+
+          </>
+        )}
 
         {error && (
           <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">

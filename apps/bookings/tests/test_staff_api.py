@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APIClient
 
-from apps.bookings.models import Booking, BookingSource, BookingStatus, CancelledBy
+from apps.bookings.models import Booking, BookingItem, BookingSource, BookingStatus, CancelledBy
 from apps.clients.models import Client
 from apps.staff.models import TimeOff
 
@@ -188,3 +188,117 @@ class StaffBookingTests(StaffApiTestCase):
         booking.refresh_from_db()
         self.assertEqual(booking.status, BookingStatus.CANCELLED)
         self.assertEqual(booking.cancelled_by, CancelledBy.SALON)
+
+
+class StaffWeekTests(StaffApiTestCase):
+    def test_week_of_one_specialist(self):
+        self.book(self.poli, self.colour, at(self.day, 10))
+        self.book(self.poli, self.cut, at(self.day + timedelta(days=2), 15))
+        self.book(self.ivan, self.cut, at(self.day, 10))
+        self.login()
+
+        wednesday = self.day + timedelta(days=2)
+        data = self.api.get(
+            reverse("api:staff-week"), {"date": wednesday.isoformat(), "specialist": self.poli.pk}
+        ).json()
+
+        self.assertEqual(data["start"], self.day.isoformat())  # always starts on Monday
+        self.assertEqual(data["specialist"], self.poli.pk)
+        self.assertEqual(len(data["specialists"]), 3)
+        self.assertEqual(len(data["days"]), 7)
+        self.assertEqual(len(data["days"][0]["working"]), 1)
+        self.assertEqual(data["days"][5]["working"], [])  # Saturday off
+        self.assertEqual(len(data["bookings"]), 2)  # Ivan's visit is not in Poli's week
+
+
+class StaffMoveTests(StaffApiTestCase):
+    def move(self, booking, start, specialist):
+        return self.api.post(
+            reverse("api:staff-booking-move", args=[booking.pk]),
+            {"item": booking.items.first().pk, "start": start.isoformat(), "specialist": specialist.pk},
+            format="json",
+        )
+
+    def test_drag_to_another_time_and_specialist(self):
+        booking = self.book(self.poli, self.cut, at(self.day, 10), buffer=15)
+        self.login()
+        response = self.move(booking, at(self.day + timedelta(days=1), 14, 5), self.ivan)
+        self.assertEqual(response.status_code, 200, response.content)
+        booking.refresh_from_db()
+        item = booking.items.get()
+        self.assertEqual(item.specialist, self.ivan)
+        self.assertEqual(item.start_at, at(self.day + timedelta(days=1), 14, 5))
+        self.assertEqual(item.end_at, at(self.day + timedelta(days=1), 14, 50))
+        self.assertEqual(item.busy_until, at(self.day + timedelta(days=1), 15, 5))
+        self.assertEqual(booking.start_at, item.start_at)
+        self.assertEqual(booking.end_at, item.end_at)
+
+    def test_whole_visit_moves_together(self):
+        booking = self.book(self.poli, self.cut, at(self.day, 10))
+        BookingItem.objects.create(
+            booking=booking,
+            service=self.colour,
+            specialist=self.poli,
+            start_at=at(self.day, 10, 45),
+            end_at=at(self.day, 12, 15),
+            busy_until=at(self.day, 12, 15),
+            price=self.colour.price,
+            duration_minutes=90,
+        )
+        self.login()
+        self.assertEqual(self.move(booking, at(self.day, 13), self.poli).status_code, 200)
+        self.assertEqual(
+            [i.start_at for i in booking.items.order_by("start_at")], [at(self.day, 13), at(self.day, 13, 45)]
+        )
+
+    def test_rejects_clash_time_off_and_closed_hours(self):
+        booking = self.book(self.poli, self.cut, at(self.day, 10))
+        self.book(self.ivan, self.cut, at(self.day, 12))
+        TimeOff.objects.create(specialist=self.poli, start=at(self.day, 14), end=at(self.day, 15))
+        self.login()
+        self.assertIn("има час", self.move(booking, at(self.day, 12, 15), self.ivan).json()["detail"])
+        self.assertIn("отсъства", self.move(booking, at(self.day, 14, 30), self.poli).json()["detail"])
+        self.assertIn("не работи", self.move(booking, at(self.day, 17, 30), self.poli).json()["detail"])
+        booking.refresh_from_db()
+        self.assertEqual(booking.start_at, at(self.day, 10))
+
+    def test_rejects_specialist_who_does_not_do_the_service(self):
+        booking = self.book(self.poli, self.cut, at(self.day, 10))
+        self.login()
+        response = self.move(booking, at(self.day, 10), self.nadia)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("не извършва", response.json()["detail"])
+
+
+class StaffTimeOffTests(StaffApiTestCase):
+    def test_block_time_and_remove_it(self):
+        self.login()
+        response = self.api.post(
+            reverse("api:staff-time-off-create"),
+            {
+                "specialist": self.poli.pk,
+                "start": at(self.day, 13).isoformat(),
+                "end": at(self.day, 14).isoformat(),
+                "reason": "Обедна почивка",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        day = self.api.get(reverse("api:staff-day"), {"date": self.day.isoformat()}).json()
+        blocked = day["specialists"][0]["time_off"][0]
+        self.assertEqual(blocked["reason"], "Обедна почивка")
+
+        response = self.api.delete(reverse("api:staff-time-off-detail", args=[blocked["id"]]))
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(TimeOff.objects.exists())
+
+    def test_cannot_block_over_a_booking(self):
+        self.book(self.poli, self.colour, at(self.day, 10))
+        self.login()
+        response = self.api.post(
+            reverse("api:staff-time-off-create"),
+            {"specialist": self.poli.pk, "start": at(self.day, 11).isoformat(), "end": at(self.day, 12).isoformat()},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Мария Иванова", str(response.json()))
