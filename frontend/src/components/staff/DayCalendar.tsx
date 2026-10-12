@@ -1,6 +1,18 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Globe, LogOut, Menu, Plus, RefreshCw } from "lucide-react";
+import {
+  CalendarDays,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Globe,
+  LogOut,
+  Menu,
+  MessageCircle,
+  Plus,
+  RefreshCw,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -37,6 +49,7 @@ export function DayCalendar({ initialDate }: { initialDate?: string }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [draft, setDraft] = useState<NewBookingDraft | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
   const [now, setNow] = useState(() => salonClock(new Date()));
   const scroller = useRef<HTMLDivElement>(null);
   const scrolledFor = useRef<string | null>(null);
@@ -73,6 +86,20 @@ export function DayCalendar({ initialDate }: { initialDate?: string }) {
     }, REFRESH_MS);
     return () => clearInterval(timer);
   }, [date, load]);
+
+  // Unread messages from clients, shown on the menu button.
+  useEffect(() => {
+    const check = () =>
+      staffApi
+        .inbox()
+        .then((inbox) => setUnread(inbox.unread_total))
+        .catch(() => null);
+    void check();
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void check();
+    }, REFRESH_MS);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     staffApi
@@ -139,8 +166,13 @@ export function DayCalendar({ initialDate }: { initialDate?: string }) {
             <ChevronRight size={26} />
           </button>
         </div>
-        <button aria-label="Меню" onClick={() => setMenuOpen((o) => !o)} className="p-2">
+        <button aria-label="Меню" onClick={() => setMenuOpen((o) => !o)} className="relative p-2">
           <Menu size={28} />
+          {unread > 0 && (
+            <span className="absolute top-1 right-0.5 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4">
+              {unread}
+            </span>
+          )}
         </button>
         {loading && <span className="absolute right-0 bottom-0 left-0 h-0.5 animate-pulse bg-white/70" />}
         {menuOpen && (
@@ -160,6 +192,11 @@ export function DayCalendar({ initialDate }: { initialDate?: string }) {
                 void load(date);
                 setMenuOpen(false);
               }}
+            />
+            <MenuItem
+              icon={<MessageCircle size={18} />}
+              label={unread > 0 ? `Съобщения (${unread})` : "Съобщения"}
+              onClick={() => router.push("/personal/saobshtenia")}
             />
             <MenuItem icon={<LogOut size={18} />} label="Изход" onClick={logout} />
           </div>

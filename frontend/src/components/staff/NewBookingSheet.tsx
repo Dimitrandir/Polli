@@ -317,6 +317,7 @@ function ClientPicker({
             <li key={c.id}>
               <button onClick={() => onClient(c)} className="w-full px-3 py-2 text-left hover:bg-neutral-50">
                 <span className="block text-sm text-neutral-900">
+                  {c.nickname && <span className="text-neutral-500">{c.nickname} → </span>}
                   {c.name} {c.is_blocked && "⛔"}
                 </span>
                 <span className="block text-xs text-neutral-500">{c.phone}</span>

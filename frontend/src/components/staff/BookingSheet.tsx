@@ -1,12 +1,13 @@
 "use client";
 
-import { Ban, Check, Globe, Mail, Phone, RotateCcw, UserX } from "lucide-react";
+import { Ban, Check, Globe, IdCard, Mail, Phone, RotateCcw, UserX } from "lucide-react";
 import { useState } from "react";
 
 import { ApiError } from "@/lib/api";
 import { formatLongDate, formatPrice, formatTime } from "@/lib/format";
 import { staffApi, type DaySpecialist, type StaffBooking } from "@/lib/staff-api";
 
+import { ClientSheet } from "./ClientSheet";
 import { Field, inputClass, Sheet } from "./Sheet";
 
 const STATUS_LABEL: Record<StaffBooking["status"], string> = {
@@ -30,6 +31,7 @@ export function BookingSheet({
   const [note, setNote] = useState(booking.internal_note);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showClient, setShowClient] = useState(false);
   const names = new Map(specialists.map((s) => [s.id, s.name]));
   const phone = booking.client.phone;
 
@@ -54,6 +56,10 @@ export function BookingSheet({
   }
 
   const active = booking.status === "confirmed";
+
+  if (showClient) {
+    return <ClientSheet clientId={booking.client.id} onClose={() => setShowClient(false)} />;
+  }
 
   return (
     <Sheet
@@ -107,6 +113,7 @@ export function BookingSheet({
           {booking.client.name}
           {booking.client.is_blocked && <span className="ml-2 text-sm text-red-600">⛔ блокиран</span>}
         </p>
+        {booking.client.nickname && <p className="text-sm text-neutral-500">„{booking.client.nickname}“</p>}
         <div className="mt-2 flex flex-wrap gap-2">
           <a
             href={`tel:${phone}`}
@@ -114,6 +121,12 @@ export function BookingSheet({
           >
             <Phone size={16} /> {phone}
           </a>
+          <button
+            onClick={() => setShowClient(true)}
+            className="inline-flex items-center gap-2 rounded-full border border-neutral-300 px-4 py-2 text-sm text-neutral-700"
+          >
+            <IdCard size={16} /> Карта на клиента
+          </button>
           {booking.client.email && (
             <a
               href={`mailto:${booking.client.email}`}
