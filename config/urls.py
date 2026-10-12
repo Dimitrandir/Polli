@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from apps.bookings import api as bookings_api
+from apps.bookings import staff_api as team_api
 from apps.catalog import api as catalog_api
 from apps.content import api as content_api
 from apps.salon import api as salon_api
@@ -27,6 +28,16 @@ api_urlpatterns = [
     path("articles/", content_api.ArticleListView.as_view(), name="article-list"),
     path("articles/<str:slug>/", content_api.ArticleDetailView.as_view(), name="article-detail"),
     path("pages/<str:slug>/", content_api.PageDetailView.as_view(), name="page-detail"),
+    # The salon team's calendar.
+    path("staff/session/", team_api.StaffSessionView.as_view(), name="staff-session"),
+    path("staff/login/", team_api.StaffLoginView.as_view(), name="staff-login"),
+    path("staff/logout/", team_api.StaffLogoutView.as_view(), name="staff-logout"),
+    path("staff/day/", team_api.StaffDayView.as_view(), name="staff-day"),
+    path("staff/services/", team_api.StaffServicesView.as_view(), name="staff-services"),
+    path("staff/clients/", team_api.StaffClientSearchView.as_view(), name="staff-clients"),
+    path("staff/bookings/", team_api.StaffBookingCreateView.as_view(), name="staff-booking-create"),
+    path("staff/bookings/<int:pk>/", team_api.StaffBookingDetailView.as_view(), name="staff-booking-detail"),
+    path("staff/bookings/<int:pk>/cancel/", team_api.StaffBookingCancelView.as_view(), name="staff-booking-cancel"),
 ]
 
 urlpatterns = [

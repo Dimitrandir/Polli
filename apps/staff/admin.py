@@ -42,8 +42,8 @@ class TimeOffInline(UpcomingFilterMixin, admin.TabularInline):
 
 @admin.register(Specialist)
 class SpecialistAdmin(admin.ModelAdmin):
-    list_display = ["name", "title", "order", "is_online_bookable", "is_active"]
-    list_editable = ["order", "is_online_bookable", "is_active"]
+    list_display = ["name", "title", "color", "order", "is_online_bookable", "is_active"]
+    list_editable = ["color", "order", "is_online_bookable", "is_active"]
     search_fields = ["name", "title"]
     inlines = [SpecialistServiceInline, WorkingHoursInline, ScheduleOverrideInline, TimeOffInline]
 

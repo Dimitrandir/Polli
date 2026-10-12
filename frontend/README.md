@@ -12,6 +12,9 @@ Next.js 15 (App Router) + TypeScript + Tailwind CSS 4 + Motion. Говори с 
 - `/statii`, `/statii/<slug>` – статии (филтър по таг: `?tag=`)
 - `/kontakti` – адрес, телефон, работно време, условия при резервация
 - `/obshti-usloviya`, `/poveritelnost` – текстовете от админа (Съдържание → Страници)
+- `/personal` – дневният календар за екипа в стила на Studio24, `/personal/vhod` – вход за персонала
+
+Публичните страници са в `src/app/(site)/` със заглавката и долната част на сайта; `/personal` е без тях.
 
 Страниците със съдържание се рендерират на сървъра с пресни данни от Django (`BACKEND_URL`). Данните се
 зареждат в базата с `python manage.py import_site_content`. Снимките на екипа идват през `/media/*`.
@@ -39,3 +42,4 @@ npm run dev          # http://localhost:3000
 - `src/lib/booking-state.ts` – състоянието на резервацията (reducer)
 - `src/lib/format.ts` – цени, продължителност, дати и часове на български
 - `src/components/booking/` – стъпките, обобщението и страницата за управление
+- `src/lib/staff-api.ts`, `src/lib/calendar.ts`, `src/components/staff/` – календарът за персонала

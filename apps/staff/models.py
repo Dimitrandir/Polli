@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 
 
@@ -37,6 +37,13 @@ class Specialist(models.Model):
     photo = models.ImageField("снимка", upload_to="specialists/", blank=True)
     services = models.ManyToManyField(
         "catalog.Service", through="SpecialistService", related_name="specialists", verbose_name="услуги"
+    )
+    color = models.CharField(
+        "цвят в календара",
+        max_length=7,
+        blank=True,
+        validators=[RegexValidator(r"^#[0-9a-fA-F]{6}$", "Цветът трябва да е във вида #1e88e5.")],
+        help_text="Цвят на колоната и часовете в календара на персонала, напр. #7cb342. Празно = автоматично.",
     )
     order = models.PositiveIntegerField("подредба", default=0)
     is_active = models.BooleanField("активен", default=True)
