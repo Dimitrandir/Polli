@@ -44,7 +44,12 @@ class ImportSiteContentTests(TestCase):
         poli = Specialist.objects.get(name="Павлинка Ботева")
         self.assertEqual(poli.title, "Колорист, трихолог")
         self.assertTrue(poli.photo.name.startswith("specialists/"))
-        self.assertEqual(poli.working_hours.count(), 6)
+        self.assertEqual(
+            [(h.weekday, f"{h.start_time:%H:%M}", f"{h.end_time:%H:%M}") for h in poli.working_hours.all()],
+            [(d, "09:00", "17:00") for d in range(5)],
+        )
+        radoslav = Specialist.objects.get(name="Радослав Матев")
+        self.assertEqual([h.weekday for h in radoslav.working_hours.all()], [0, 1, 2, 3, 4, 5])
 
         cut = Service.objects.get(name="Дамско със сешоар")
         self.assertEqual(cut.price, Decimal("43.46"))
@@ -59,14 +64,17 @@ class ImportSiteContentTests(TestCase):
     def test_running_again_keeps_admin_changes(self):
         self.run_import()
         Service.objects.filter(name="Мъжко").update(price=Decimal("25.00"))
+        Specialist.objects.get(name="Бела Тодорова").working_hours.filter(weekday=0).delete()
         self.run_import()
         self.assertEqual(self.counts(), [2, 9, 41, 3, 63, 31, 3, 1])
         self.assertEqual(Service.objects.get(name="Мъжко").price, Decimal("25.00"))
+        self.assertEqual(Specialist.objects.get(name="Бела Тодорова").working_hours.count(), 4)
 
         self.run_import("--overwrite")
         self.assertEqual(self.counts(), [2, 9, 41, 3, 63, 31, 3, 1])
         self.assertEqual(Service.objects.get(name="Мъжко").price, Decimal("20.45"))
         self.assertEqual(SalonInfo.load().opening_hours.count(), 6)
+        self.assertEqual(Specialist.objects.get(name="Бела Тодорова").working_hours.count(), 5)
 
     def test_api_serves_the_content(self):
         self.run_import()

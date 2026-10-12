@@ -74,7 +74,6 @@ class Command(BaseCommand):
         return obj
 
     def load_specialists(self, catalog):
-        hours = catalog["specialist_working_hours"]
         specialists = {}
         for order, row in enumerate(catalog["specialists"]):
             specialist = self.upsert(
@@ -83,7 +82,9 @@ class Command(BaseCommand):
             if not specialist.photo and row.get("photo"):
                 with (self.data_dir / "photos" / row["photo"]).open("rb") as photo:
                     specialist.photo.save(row["photo"], File(photo), save=True)
-            # The salon's opening hours as a starting point; the real schedule is edited in the admin.
+            # The weekly schedule from the old booking module; after that it is edited in the admin.
+            if self.overwrite:
+                specialist.working_hours.all().delete()
             if not specialist.working_hours.exists():
                 WorkingHours.objects.bulk_create(
                     WorkingHours(
@@ -92,7 +93,7 @@ class Command(BaseCommand):
                         start_time=parse_time(h["start"]),
                         end_time=parse_time(h["end"]),
                     )
-                    for h in hours
+                    for h in row["working_hours"]
                 )
             specialists[row["name"]] = specialist
         return specialists
