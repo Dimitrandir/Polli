@@ -6,6 +6,9 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 
+import { SiteFooter } from "@/components/site/SiteFooter";
+import { SiteNav } from "@/components/site/SiteNav";
+
 export const metadata: Metadata = {
   title: { default: "SIS Esthetics Hair", template: "%s · SIS Esthetics Hair" },
   description: "Салон за красота SIS Esthetics Hair – колористика, трихология, маникюр. Запазете час онлайн.",
@@ -33,6 +36,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 Esthetics Hair
               </span>
             </Link>
+            <SiteNav className="hidden items-center gap-1 md:flex" />
             <Link
               href="/rezervacia"
               className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-bg transition hover:bg-accent hover:text-accent-ink"
@@ -40,8 +44,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               Запази час
             </Link>
           </div>
+          <SiteNav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-2 pb-2 md:hidden" />
         </header>
         {children}
+        <SiteFooter />
       </body>
     </html>
   );
