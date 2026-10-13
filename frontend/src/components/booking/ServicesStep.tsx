@@ -10,6 +10,7 @@ import { type Action, type BookingState, MAX_SERVICES, offerFor } from "@/lib/bo
 import { formatDuration, formatPrice } from "@/lib/format";
 import { itemRange, type MenuItem, menuItems, searchMenu } from "@/lib/services";
 
+import { Collapsible } from "../ui/Collapsible";
 import { SearchField } from "../ui/SearchField";
 import { StepHeading } from "./StepHeading";
 
@@ -24,6 +25,8 @@ export function ServicesStep({
 }) {
   const [active, setActive] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // Groups the client opened or closed; the rest follow the default below.
+  const [openGroups, setOpenGroups] = useState<Map<number, boolean>>(new Map());
   // Until a tab is clicked, open the category of the first chosen service (e.g. one picked on /uslugi).
   const category =
     categories.find((c) => c.slug === active) ??
@@ -32,6 +35,7 @@ export function ServicesStep({
   const selectedIds = new Set(state.selected.map((s) => s.id));
   const full = state.selected.length >= MAX_SERVICES;
   const results = query.trim() ? searchMenu(categories, query) : null;
+  const onlyGroup = category?.groups.length === 1;
 
   const cards = (items: MenuItem[]) => (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -90,7 +94,7 @@ export function ServicesStep({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.25 }}
-          className="space-y-10"
+          className={results ? "space-y-10" : "space-y-3"}
         >
           {results
             ? results.flatMap(({ category: c, groups }) =>
@@ -103,11 +107,33 @@ export function ServicesStep({
               )
             : category?.groups.map((group) => {
                 const items = menuItems(group);
+                // Closed by default, except a category's only group and a group with a chosen service.
+                const openByDefault =
+                  onlyGroup || items.some((i) => i.options.some((o) => selectedIds.has(o.id)));
+                const open = openGroups.get(group.id) ?? openByDefault;
+                const prices = items.flatMap((i) => i.options.map((o) => offerFor(o, null).price));
                 return (
-                  <div key={group.id}>
-                    <GroupHeading name={group.name} count={items.length} />
-                    {cards(items)}
-                  </div>
+                  <Collapsible
+                    key={group.id}
+                    open={open}
+                    onToggle={() => setOpenGroups((groups) => new Map(groups).set(group.id, !open))}
+                    className="rounded-3xl bg-surface/60 p-4 ring-1 ring-line sm:p-5"
+                    header={
+                      <span className="flex items-baseline justify-between gap-4 pt-1">
+                        <span className="font-display text-2xl font-semibold text-ink">
+                          {group.name}
+                          <span className="ml-2 align-middle font-sans text-xs font-medium text-ink-soft">
+                            {items.length}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-sm text-ink-soft">
+                          от <span className="font-semibold text-ink">{formatPrice(Math.min(...prices))}</span>
+                        </span>
+                      </span>
+                    }
+                  >
+                    <div className="p-1 pt-4">{cards(items)}</div>
+                  </Collapsible>
                 );
               })}
           {results && results.length === 0 && (
@@ -127,10 +153,10 @@ export function ServicesStep({
   );
 }
 
-function GroupHeading({ name, count, category }: { name: string; count: number; category?: string }) {
+function GroupHeading({ name, count, category }: { name: string; count: number; category: string }) {
   return (
     <h3 className="mb-4 font-display text-2xl font-semibold text-ink">
-      {category && <span className="mr-2 font-sans text-sm font-medium text-ink-soft">{category} ·</span>}
+      <span className="mr-2 font-sans text-sm font-medium text-ink-soft">{category} ·</span>
       {name}
       <span className="ml-2 align-middle font-sans text-xs font-medium text-ink-soft">{count}</span>
     </h3>
