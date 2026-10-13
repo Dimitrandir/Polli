@@ -88,6 +88,8 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "bg"
+# 13.10.2026, 15:05 instead of Django's "3:05 след обяд" (config/formats/bg/formats.py).
+FORMAT_MODULE_PATH = ["config.formats"]
 TIME_ZONE = "Europe/Sofia"
 USE_I18N = True
 USE_TZ = True
