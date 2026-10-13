@@ -39,7 +39,7 @@ class ImportSiteContentTests(TestCase):
 
     def test_loads_the_whole_site(self):
         self.run_import()
-        self.assertEqual(self.counts(), [2, 9, 59, 3, 93, 31, 3, 1])
+        self.assertEqual(self.counts(), [2, 9, 67, 3, 103, 31, 3, 1])
 
         poli = Specialist.objects.get(name="Павлинка Ботева")
         self.assertEqual(poli.title, "Колорист, трихолог")
@@ -54,8 +54,9 @@ class ImportSiteContentTests(TestCase):
         long_colour = Service.objects.get(name="Боядисване с амонячна боя", option="на дълга коса")
         self.assertEqual(long_colour.display_name, "Боядисване с амонячна боя - на дълга коса")
         self.assertEqual(Service.objects.filter(name="Боядисване с амонячна боя").count(), 3)
-        # Studio24 only gave a starting price for these, so the salon books them for now.
-        self.assertFalse(Service.objects.get(name="Оформяне с маша").is_online_bookable)
+        decorations = Service.objects.get(name="Базови декорации", option="на 6 нокътя")
+        self.assertEqual((decorations.price, decorations.duration_minutes), (Decimal("3.07"), 10))
+        self.assertTrue(decorations.is_online_bookable)
 
         salon = SalonInfo.load()
         self.assertEqual(salon.phone, "+359 896 034 640")
@@ -65,11 +66,11 @@ class ImportSiteContentTests(TestCase):
         self.run_import()
         Service.objects.filter(name="Мъжко подстригване").update(price=Decimal("25.00"))
         self.run_import()
-        self.assertEqual(self.counts(), [2, 9, 59, 3, 93, 31, 3, 1])
+        self.assertEqual(self.counts(), [2, 9, 67, 3, 103, 31, 3, 1])
         self.assertEqual(Service.objects.get(name="Мъжко подстригване").price, Decimal("25.00"))
 
         self.run_import("--overwrite")
-        self.assertEqual(self.counts(), [2, 9, 59, 3, 93, 31, 3, 1])
+        self.assertEqual(self.counts(), [2, 9, 67, 3, 103, 31, 3, 1])
         self.assertEqual(Service.objects.get(name="Мъжко подстригване").price, Decimal("20.00"))
         self.assertEqual(SalonInfo.load().opening_hours.count(), 6)
 
