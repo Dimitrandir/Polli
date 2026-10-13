@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Category } from "@/lib/api";
 import { categories, service } from "@/test/fixtures";
 
-import { itemRange, menuItems, normalize, searchMenu, serviceLabel } from "./services";
+import { itemRange, menuItems, normalize, searchMenu, serviceLabel, toggleId } from "./services";
 
 const short = service({ id: 10, name: "Кичури", option: "на половината коса", price: "67.00", specialists: [] });
 const whole = service({ id: 11, name: "Кичури", option: "на цялата коса", price: "82.00", specialists: [] });
@@ -38,5 +38,14 @@ describe("services menu", () => {
     expect(searchMenu(menu, "кичури арт")[0].groups[0].items.map((i) => i.name)).toEqual(["Кичури с арт техника"]);
     expect(searchMenu(menu, "")).toHaveLength(3);
     expect(searchMenu(menu, "няма такава")).toEqual([]);
+  });
+});
+
+describe("toggleId", () => {
+  it("adds a missing id and removes a present one without changing the original", () => {
+    const ids = new Set([1]);
+    expect([...toggleId(ids, 2)]).toEqual([1, 2]);
+    expect([...toggleId(ids, 1)]).toEqual([]);
+    expect([...ids]).toEqual([1]);
   });
 });

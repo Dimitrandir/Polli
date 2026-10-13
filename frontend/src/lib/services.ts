@@ -69,3 +69,10 @@ export function itemRange(item: MenuItem, priceOf: (s: Service) => number) {
     maxDuration: Math.max(...durations),
   };
 }
+
+/** A copy of the set with the id added, or removed when it was there; for groups that open and close. */
+export function toggleId(ids: Set<number>, id: number): Set<number> {
+  const next = new Set(ids);
+  if (!next.delete(id)) next.add(id);
+  return next;
+}
