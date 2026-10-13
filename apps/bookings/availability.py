@@ -137,7 +137,7 @@ class AvailabilityEngine:
     def _candidates_for(self, req):
         service = req.service
         if not service.is_active or not (service.is_online_bookable or self.for_staff):
-            raise BookingError(f"Услугата „{service.name}“ не може да бъде резервирана онлайн.")
+            raise BookingError(f"Услугата „{service.display_name}“ не може да бъде резервирана онлайн.")
         qs = SpecialistService.objects.filter(service=service, specialist__is_active=True).select_related(
             "specialist", "service"
         )
@@ -148,8 +148,8 @@ class AvailabilityEngine:
         candidates = list(qs.order_by("specialist__order", "specialist__name"))
         if not candidates:
             if req.specialist is not None:
-                raise BookingError(f"{req.specialist.name} не извършва услугата „{service.name}“.")
-            raise BookingError(f"В момента няма специалист за услугата „{service.name}“.")
+                raise BookingError(f"{req.specialist.name} не извършва услугата „{service.display_name}“.")
+            raise BookingError(f"В момента няма специалист за услугата „{service.display_name}“.")
         return candidates
 
     @property

@@ -114,7 +114,7 @@ class Command(BaseCommand):
                 for s_order, row in enumerate(grp["services"]):
                     service = self.upsert(
                         Service,
-                        {"group": group, "name": row["name"]},
+                        {"group": group, "name": row["name"], "option": row.get("option", "")},
                         {
                             "description": row["description"],
                             "price": Decimal(row["price"]),

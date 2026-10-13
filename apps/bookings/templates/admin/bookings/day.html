@@ -27,7 +27,7 @@
         <td><a href="{% url 'admin:bookings_booking_change' item.booking_id %}">{{ item.start_at|time:"H:i" }}–{{ item.end_at|time:"H:i" }}</a></td>
         <td>{{ item.booking.client.full_name }}{% if item.booking.client.is_blocked %} ⛔{% endif %}</td>
         <td>{{ item.booking.client.phone }}</td>
-        <td>{{ item.service.name }}</td>
+        <td>{{ item.service.display_name }}</td>
         <td>{{ item.booking.note }}</td>
       </tr>
     {% empty %}

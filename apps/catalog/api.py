@@ -25,6 +25,7 @@ class ServiceSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
+            "option",
             "description",
             "price",
             "duration_minutes",

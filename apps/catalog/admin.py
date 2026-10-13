@@ -36,9 +36,9 @@ class SpecialistServiceInline(admin.TabularInline):
 
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):
-    list_display = ["name", "group", "price", "duration_minutes", "is_online_bookable", "is_active"]
+    list_display = ["name", "option", "group", "price", "duration_minutes", "is_online_bookable", "is_active"]
     list_editable = ["price", "duration_minutes", "is_online_bookable", "is_active"]
     list_filter = ["group__category", "group", "is_online_bookable", "is_active"]
-    search_fields = ["name", "description"]
+    search_fields = ["name", "option", "description"]
     filter_horizontal = ["resources"]
     inlines = [SpecialistServiceInline]

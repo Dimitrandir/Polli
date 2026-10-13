@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 
 import { type Action, type BookingState, canContinue, estimate, offerFor } from "@/lib/booking-state";
 import { formatDuration, formatLongDate, formatPrice, formatTime } from "@/lib/format";
+import { serviceLabel } from "@/lib/services";
 
 import { Button } from "../ui/Button";
 
@@ -52,7 +53,7 @@ export function Summary({ state, dispatch, onNext }: Props) {
                   className="group flex items-start justify-between gap-3 overflow-hidden"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">{service.name}</p>
+                    <p className="text-sm font-semibold text-ink">{serviceLabel(service)}</p>
                     <p className="text-xs text-ink-soft">
                       {specialist ?? "Без предпочитание"}
                       {planned && ` · ${formatTime(planned.start)}`}
@@ -64,7 +65,7 @@ export function Summary({ state, dispatch, onNext }: Props) {
                     </span>
                     {state.step !== "details" && (
                       <button
-                        aria-label={`Премахни ${service.name}`}
+                        aria-label={`Премахни ${serviceLabel(service)}`}
                         onClick={() => dispatch({ type: "removeService", id: service.id })}
                         className="rounded-full p-1 text-ink-soft opacity-60 transition hover:bg-surface-2 hover:text-ink group-hover:opacity-100"
                       >
