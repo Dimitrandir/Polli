@@ -147,7 +147,7 @@ def export_data(user, now=None):
             "status": booking.status,
             "note": booking.note,
             "services": [
-                {"service": item.service.name, "specialist": item.specialist.name, "price": str(item.price)}
+                {"service": item.service.display_name, "specialist": item.specialist.name, "price": str(item.price)}
                 for item in booking.items.all()
             ],
         }

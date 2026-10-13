@@ -52,7 +52,7 @@ def client_card(client, user):
                 "id": b.pk,
                 "start": b.start_at,
                 "status": b.status,
-                "services": ", ".join(item.service.name for item in b.items.all()),
+                "services": ", ".join(item.service.display_name for item in b.items.all()),
             }
             for b in bookings
         ],
