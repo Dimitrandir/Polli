@@ -42,6 +42,13 @@ class ServiceGroup(models.Model):
 class Service(models.Model):
     group = models.ForeignKey(ServiceGroup, on_delete=models.PROTECT, related_name="services", verbose_name="група")
     name = models.CharField("име", max_length=200)
+    option = models.CharField(
+        "опция",
+        max_length=100,
+        blank=True,
+        help_text="Вариант на услугата, напр. „на дълга коса“. Услугите с едно и също име в групата "
+        "се показват като една услуга с избор на опция.",
+    )
     description = models.TextField("описание", blank=True)
     price = models.DecimalField("цена (EUR)", max_digits=8, decimal_places=2, validators=[MinValueValidator(0)])
     duration_minutes = models.PositiveIntegerField("продължителност (мин.)", validators=[MinValueValidator(5)])
@@ -69,4 +76,9 @@ class Service(models.Model):
         verbose_name_plural = "услуги"
 
     def __str__(self):
-        return self.name
+        return self.display_name
+
+    @property
+    def display_name(self):
+        """Name and option, e.g. "Кичури - на цялата коса"; just the name when there is no option."""
+        return f"{self.name} - {self.option}" if self.option else self.name

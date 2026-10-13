@@ -5,6 +5,8 @@ export type SpecialistOffer = { id: number; name: string; price: string; duratio
 export type Service = {
   id: number;
   name: string;
+  /** Variant of the service, e.g. "на дълга коса"; "" when it has none. */
+  option: string;
   description: string;
   price: string;
   duration_minutes: number;

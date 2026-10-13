@@ -16,7 +16,14 @@ import { Stepper } from "./Stepper";
 import { MobileBar, Summary } from "./Summary";
 import { TimeStep } from "./TimeStep";
 
-export function BookingWizard({ initialCategories }: { initialCategories?: Category[] }) {
+export function BookingWizard({
+  initialCategories,
+  preselect,
+}: {
+  initialCategories?: Category[];
+  /** Id of a service to start with, e.g. from "Запази час" on the services page. */
+  preselect?: number;
+}) {
   const [state, dispatch] = useReducer(reducer, undefined, () => initialState());
   const [categories, setCategories] = useState<Category[] | null>(initialCategories ?? null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -31,6 +38,16 @@ export function BookingWizard({ initialCategories }: { initialCategories?: Categ
       .then(setCategories)
       .catch((e: unknown) => setLoadError(e instanceof ApiError ? e.message : String(e)));
   }, [categories]);
+
+  const preselected = useRef(false);
+  useEffect(() => {
+    if (!categories || !preselect || preselected.current) return;
+    preselected.current = true;
+    const service = categories
+      .flatMap((c) => c.groups.flatMap((g) => g.services))
+      .find((s) => s.id === preselect && s.is_online_bookable && s.specialists.length > 0);
+    if (service) dispatch({ type: "toggleService", service });
+  }, [categories, preselect]);
 
   const go = useCallback((step: Step) => {
     dispatch({ type: "goTo", step });

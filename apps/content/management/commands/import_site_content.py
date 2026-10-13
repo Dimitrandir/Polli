@@ -48,6 +48,7 @@ class Command(BaseCommand):
         self.data_dir = data_dir
         self.overwrite = overwrite
         self.created = {}
+        self.hidden = 0
         self.updated = {}
 
         catalog = json.loads((data_dir / "catalog.json").read_text(encoding="utf-8"))
@@ -59,6 +60,8 @@ class Command(BaseCommand):
 
         for label in {**self.created, **self.updated}:
             self.stdout.write(f"{label}: нови {self.created.get(label, 0)}, обновени {self.updated.get(label, 0)}")
+        if self.hidden:
+            self.stdout.write(f"скрити услуги, които вече ги няма в ценоразписа: {self.hidden}")
         self.stdout.write(self.style.SUCCESS("Съдържанието от стария сайт е заредено."))
 
     def upsert(self, model, lookup, values):
@@ -100,23 +103,28 @@ class Command(BaseCommand):
     def load_services(self, catalog, specialists):
         for c_order, cat in enumerate(catalog["categories"]):
             category = self.upsert(ServiceCategory, {"slug": cat["slug"]}, {"name": cat["name"], "order": c_order})
+            group_ids, service_ids = [], []
             for g_order, grp in enumerate(cat["groups"]):
                 group = self.upsert(
                     ServiceGroup,
                     {"category": category, "name": grp["name"]},
-                    {"description": grp["description"], "order": g_order},
+                    {"description": grp["description"], "order": g_order, "is_active": True},
                 )
+                group_ids.append(group.pk)
                 for s_order, row in enumerate(grp["services"]):
                     service = self.upsert(
                         Service,
-                        {"group": group, "name": row["name"]},
+                        {"group": group, "name": row["name"], "option": row.get("option", "")},
                         {
                             "description": row["description"],
                             "price": Decimal(row["price"]),
                             "duration_minutes": row["duration_minutes"],
                             "order": s_order,
+                            "is_active": True,
+                            "is_online_bookable": row.get("is_online_bookable", True),
                         },
                     )
+                    service_ids.append(service.pk)
                     for name in row["specialists"]:
                         own_price = row["price_by_specialist"].get(name)
                         self.upsert(
@@ -124,6 +132,12 @@ class Command(BaseCommand):
                             {"specialist": specialists[name], "service": service},
                             {"price_override": Decimal(own_price) if own_price else None},
                         )
+            if self.overwrite:
+                # Hide what is no longer on the price list. Kept, not deleted, because past bookings point to it.
+                hidden = Service.objects.filter(group__category=category, is_active=True).exclude(pk__in=service_ids)
+                hidden_groups = category.groups.filter(is_active=True).exclude(pk__in=group_ids)
+                self.hidden += hidden.update(is_active=False)
+                hidden_groups.update(is_active=False)
 
     def load_salon(self, data):
         values = {k: data[k] for k in ["name", "legal_name", "phone", "email", "address", "booking_policy"]}

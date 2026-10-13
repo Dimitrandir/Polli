@@ -39,18 +39,23 @@ class ImportSiteContentTests(TestCase):
 
     def test_loads_the_whole_site(self):
         self.run_import()
-        self.assertEqual(self.counts(), [2, 9, 41, 3, 63, 31, 3, 1])
+        self.assertEqual(self.counts(), [2, 9, 59, 3, 93, 31, 3, 1])
 
         poli = Specialist.objects.get(name="Павлинка Ботева")
         self.assertEqual(poli.title, "Колорист, трихолог")
         self.assertTrue(poli.photo.name.startswith("specialists/"))
         self.assertEqual(poli.working_hours.count(), 6)
 
-        cut = Service.objects.get(name="Дамско със сешоар")
-        self.assertEqual(cut.price, Decimal("43.46"))
+        cut = Service.objects.get(name="Дамско подстригване + сешоар")
+        self.assertEqual(cut.price, Decimal("40.00"))
         self.assertEqual(cut.duration_minutes, 60)
         prices = {ss.specialist.name: ss.price for ss in cut.specialist_services.all()}
-        self.assertEqual(prices, {"Павлинка Ботева": Decimal("43.97"), "Радослав Матев": Decimal("40.39")})
+        self.assertEqual(prices, {"Павлинка Ботева": Decimal("40.00"), "Радослав Матев": Decimal("40.00")})
+        long_colour = Service.objects.get(name="Боядисване с амонячна боя", option="на дълга коса")
+        self.assertEqual(long_colour.display_name, "Боядисване с амонячна боя - на дълга коса")
+        self.assertEqual(Service.objects.filter(name="Боядисване с амонячна боя").count(), 3)
+        # Studio24 only gave a starting price for these, so the salon books them for now.
+        self.assertFalse(Service.objects.get(name="Оформяне с маша").is_online_bookable)
 
         salon = SalonInfo.load()
         self.assertEqual(salon.phone, "+359 896 034 640")
@@ -58,15 +63,32 @@ class ImportSiteContentTests(TestCase):
 
     def test_running_again_keeps_admin_changes(self):
         self.run_import()
-        Service.objects.filter(name="Мъжко").update(price=Decimal("25.00"))
+        Service.objects.filter(name="Мъжко подстригване").update(price=Decimal("25.00"))
         self.run_import()
-        self.assertEqual(self.counts(), [2, 9, 41, 3, 63, 31, 3, 1])
-        self.assertEqual(Service.objects.get(name="Мъжко").price, Decimal("25.00"))
+        self.assertEqual(self.counts(), [2, 9, 59, 3, 93, 31, 3, 1])
+        self.assertEqual(Service.objects.get(name="Мъжко подстригване").price, Decimal("25.00"))
 
         self.run_import("--overwrite")
-        self.assertEqual(self.counts(), [2, 9, 41, 3, 63, 31, 3, 1])
-        self.assertEqual(Service.objects.get(name="Мъжко").price, Decimal("20.45"))
+        self.assertEqual(self.counts(), [2, 9, 59, 3, 93, 31, 3, 1])
+        self.assertEqual(Service.objects.get(name="Мъжко подстригване").price, Decimal("20.00"))
         self.assertEqual(SalonInfo.load().opening_hours.count(), 6)
+
+    def test_overwrite_hides_services_that_are_no_longer_offered(self):
+        self.run_import()
+        old = Service.objects.create(
+            group=ServiceGroup.objects.get(name="Терапии за коса"), name="Стара терапия", price=10, duration_minutes=30
+        )
+        old_group = ServiceGroup.objects.create(category=ServiceCategory.objects.get(slug="kosa"), name="Стара група")
+        self.run_import()
+        old.refresh_from_db()
+        self.assertTrue(old.is_active)
+
+        self.run_import("--overwrite")
+        old.refresh_from_db()
+        old_group.refresh_from_db()
+        self.assertFalse(old.is_active)
+        self.assertFalse(old_group.is_active)
+        self.assertTrue(Service.objects.get(name="Мъжко подстригване").is_active)
 
     def test_api_serves_the_content(self):
         self.run_import()
