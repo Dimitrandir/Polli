@@ -27,6 +27,16 @@ describe("booking state", () => {
     expect(state.selected.map((s) => s.id)).toEqual([colour.id]);
   });
 
+  it("swaps one option of a service for another", () => {
+    const short = service({ id: 20, name: "Кичури", option: "на половината коса" });
+    const whole = service({ id: 21, name: "Кичури", option: "на цялата коса" });
+    let state = reducer(start(), { type: "toggleService", service: manicure });
+    state = reducer(state, { type: "toggleService", service: short });
+    state = reducer(state, { type: "toggleService", service: whole });
+    expect(state.selected.map((s) => s.id)).toEqual([manicure.id, whole.id]);
+    expect(state.specialists).not.toHaveProperty("20");
+  });
+
   it("limits the number of services", () => {
     let state = start();
     for (let id = 1; id <= MAX_SERVICES + 2; id++) {

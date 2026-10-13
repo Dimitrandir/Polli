@@ -42,6 +42,7 @@ class CatalogApiTests(ApiTestCase):
         self.assertEqual(manicure["price"], "28.12")
         self.assertEqual(manicure["duration_minutes"], 90)
         self.assertEqual([s["name"] for s in manicure["specialists"]], ["Надя"])
+        self.assertEqual(manicure["option"], "")
 
     def test_inactive_services_are_hidden(self):
         self.cut.is_active = False
@@ -91,11 +92,14 @@ class AvailabilityApiTests(ApiTestCase):
 
 class BookingApiTests(ApiTestCase):
     def test_create_get_and_cancel(self):
+        self.colour.option = "на къса коса"
+        self.colour.save()
         response = self.api.post(reverse("api:booking-create"), self.booking_payload(), format="json")
         self.assertEqual(response.status_code, 201, response.content)
         data = response.json()
         self.assertEqual(data["total_price"], "108.12")
         self.assertEqual(len(data["items"]), 2)
+        self.assertIn("Боядисване на корени - на къса коса", [i["service_name"] for i in data["items"]])
         self.assertTrue(data["can_cancel"])
         client = Client.objects.get(phone="+359877000111")
         self.assertIsNotNone(client.privacy_consent_at)

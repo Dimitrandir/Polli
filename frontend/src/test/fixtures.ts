@@ -4,6 +4,7 @@ export function service(overrides: Partial<Service> = {}): Service {
   return {
     id: 1,
     name: "Боядисване на корени",
+    option: "",
     description: "",
     price: "60.00",
     duration_minutes: 90,

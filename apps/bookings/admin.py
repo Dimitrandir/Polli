@@ -111,7 +111,7 @@ class BookingAdmin(admin.ModelAdmin):
 
     @admin.display(description="услуги")
     def services(self, obj):
-        return ", ".join(item.service.name for item in obj.items.all())
+        return ", ".join(item.service.display_name for item in obj.items.all())
 
     @admin.display(description="сума (EUR)")
     def total(self, obj):

@@ -7,6 +7,7 @@ import { motion } from "motion/react";
 import type { Service } from "@/lib/api";
 import type { Action, BookingState } from "@/lib/booking-state";
 import { formatDuration, formatPrice } from "@/lib/format";
+import { serviceLabel } from "@/lib/services";
 
 import { StepHeading } from "./StepHeading";
 
@@ -107,8 +108,8 @@ function SpecialistPicker({
 
   return (
     <div>
-      <h3 className="mb-3 font-display text-2xl font-semibold text-ink">{service.name}</h3>
-      <div role="radiogroup" aria-label={`Специалист за ${service.name}`} className="flex flex-wrap gap-3">
+      <h3 className="mb-3 font-display text-2xl font-semibold text-ink">{serviceLabel(service)}</h3>
+      <div role="radiogroup" aria-label={`Специалист за ${serviceLabel(service)}`} className="flex flex-wrap gap-3">
         {visible.map((option) => {
           const checked = option.id === value;
           return (
