@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "apps.bookings",
     "apps.salon",
     "apps.content",
+    "apps.accounts",
 ]
 
 MIDDLEWARE = [
@@ -110,8 +111,30 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "bookings": os.environ.get("BOOKING_CREATE_RATE", "30/hour"),
         "staff_login": os.environ.get("STAFF_LOGIN_RATE", "10/minute"),
+        "login_code": os.environ.get("LOGIN_CODE_RATE", "10/hour"),
+        "login": os.environ.get("LOGIN_RATE", "20/hour"),
+        "messages": os.environ.get("CLIENT_MESSAGE_RATE", "30/hour"),
     },
 }
+
+# --- Client accounts ---------------------------------------------------------
+# Clients log in without a password: with Google or with a one-time code sent by email.
+# The OAuth client ID comes from Google Cloud Console (APIs & Services → Credentials → Web client).
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+LOGIN_CODE_TTL_MINUTES = 10
+LOGIN_CODE_MAX_ATTEMPTS = 5
+# Bump when the privacy policy changes; every consent records the version it was given for.
+PRIVACY_POLICY_VERSION = os.environ.get("PRIVACY_POLICY_VERSION", "2026-10")
+# Public address of the site, used in links inside emails.
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+
+EMAIL_BACKEND = os.environ.get("DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "SIS Esthetics <no-reply@sisesthetics.com>")
 
 # --- Booking rules -----------------------------------------------------------
 # All durations are in minutes.

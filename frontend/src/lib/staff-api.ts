@@ -2,6 +2,7 @@
 
 import { request } from "./api";
 import type { BookingStatus } from "./api";
+import type { Message } from "./account-api";
 
 export type StaffUser = { username: string; name: string; specialist: number | null };
 export type StaffSession = { authenticated: boolean; user: StaffUser | null };
@@ -19,6 +20,8 @@ export type StaffClient = {
   name: string;
   first_name: string;
   last_name: string;
+  /** What the team calls the client ("Митко"); only the salon sees it. */
+  nickname?: string;
   phone: string;
   email: string;
   notes: string;
@@ -85,6 +88,33 @@ export type NewStaffBooking = {
   internal_note: string;
 };
 
+export type ClientNote = { id: number; text: string; created_at: string; updated_at: string };
+
+export type ClientCard = {
+  id: number;
+  name: string;
+  first_name: string;
+  last_name: string;
+  nickname: string;
+  phone: string;
+  email: string;
+  notes: string;
+  is_blocked: boolean;
+  has_account: boolean;
+  preferred_specialist: string | null;
+  my_notes: ClientNote[];
+  bookings: { id: number; start: string; status: BookingStatus; services: string }[];
+  unread_messages: number;
+};
+
+export type Conversation = {
+  client: { id: number; name: string; nickname: string; phone: string };
+  last_message: { text: string; from_client: boolean; created_at: string };
+  unread: number;
+};
+
+export type Inbox = { unread_total: number; conversations: Conversation[] };
+
 const json = (method: string, body: unknown): RequestInit => ({ method, body: JSON.stringify(body) });
 
 export const staffApi = {
@@ -110,4 +140,15 @@ export const staffApi = {
   createTimeOff: (block: { specialist: number; start: string; end: string; reason: string }) =>
     request<TimeOff>("/staff/time-off", json("POST", block)),
   deleteTimeOff: (id: number) => request<null>(`/staff/time-off/${id}`, { method: "DELETE" }),
+  client: (id: number) => request<ClientCard>(`/staff/clients/${id}`),
+  updateClient: (id: number, changes: { nickname?: string; notes?: string }) =>
+    request<ClientCard>(`/staff/clients/${id}`, json("PATCH", changes)),
+  addNote: (clientId: number, text: string) =>
+    request<ClientNote>(`/staff/clients/${clientId}/notes`, json("POST", { text })),
+  updateNote: (id: number, text: string) => request<ClientNote>(`/staff/notes/${id}`, json("PATCH", { text })),
+  deleteNote: (id: number) => request<null>(`/staff/notes/${id}`, { method: "DELETE" }),
+  messages: (clientId: number) => request<Message[]>(`/staff/clients/${clientId}/messages`),
+  sendMessage: (clientId: number, text: string) =>
+    request<Message>(`/staff/clients/${clientId}/messages`, json("POST", { text })),
+  inbox: () => request<Inbox>("/staff/messages"),
 };

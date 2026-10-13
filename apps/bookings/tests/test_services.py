@@ -66,11 +66,12 @@ class CreateBookingTests(SalonTestCase):
 
 
 class ResolveClientTests(SalonTestCase):
-    def test_reuses_client_by_normalised_phone_without_overwriting_name(self):
+    def test_reuses_client_by_normalised_phone_without_changing_it(self):
         client = resolve_client(first_name="Друго име", phone="+359 888 123 456", email="M@Example.com", consent=True)
         self.assertEqual(client.pk, self.client_obj.pk)
         self.assertEqual(client.first_name, "Мария")
-        self.assertEqual(client.email, "m@example.com")
+        # A typed email could later link the record to someone else's account (see accounts.services).
+        self.assertEqual(client.email, "")
         self.assertIsNotNone(client.privacy_consent_at)
 
     def test_creates_new_client(self):

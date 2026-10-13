@@ -2,7 +2,7 @@ from django.contrib import admin, messages
 
 from apps.bookings.models import Booking
 
-from .models import Client
+from .models import Client, Message
 
 
 class BookingInline(admin.TabularInline):
@@ -19,14 +19,32 @@ class BookingInline(admin.TabularInline):
         return False
 
 
+class MessageInline(admin.TabularInline):
+    model = Message
+    extra = 0
+    fields = ["created_at", "from_client", "sender", "text", "read_at"]
+    readonly_fields = fields
+    can_delete = False
+    verbose_name_plural = "съобщения"
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
-    list_display = ["full_name", "phone", "email", "is_blocked", "created_at"]
+    list_display = ["full_name", "nickname", "phone", "email", "is_blocked", "created_at"]
     list_filter = ["is_blocked"]
-    search_fields = ["first_name", "last_name", "phone", "email"]
-    readonly_fields = ["blocked_at", "privacy_consent_at", "created_at"]
+    search_fields = ["first_name", "last_name", "nickname", "phone", "email"]
+    readonly_fields = [
+        "blocked_at",
+        "privacy_consent_at",
+        "privacy_consent_version",
+        "marketing_consent_at",
+        "created_at",
+    ]
     autocomplete_fields = ["user"]
-    inlines = [BookingInline]
+    inlines = [BookingInline, MessageInline]
     actions = ["block_clients", "unblock_clients"]
 
     @admin.display(description="име")

@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
+import { accountApi } from "@/lib/account-api";
 import { api, ApiError, type Booking, type ClientDetails } from "@/lib/api";
 import { type BookingState, itemRequests } from "@/lib/booking-state";
 
@@ -45,7 +46,15 @@ export function DetailsStep({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => setClient(loadSaved()), []);
+  useEffect(() => {
+    setClient(loadSaved());
+    // A logged-in client's own profile wins over details remembered in this browser.
+    accountApi
+      .session()
+      .then((s) => (s.user?.has_profile ? accountApi.profile() : null))
+      .then((p) => p && setClient({ first_name: p.first_name, last_name: p.last_name, phone: p.phone, email: p.email }))
+      .catch(() => null);
+  }, []);
 
   const set = (field: keyof ClientDetails) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setClient((c) => ({ ...c, [field]: e.target.value }));

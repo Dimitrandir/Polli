@@ -23,26 +23,35 @@ def resolve_client(*, first_name, last_name="", phone, email="", user=None, cons
     if not phone:
         raise BookingError("Моля, въведете телефон.")
 
+    # Staff who book from the public site in their own browser book for someone else.
+    account = user if user is not None and user.is_authenticated and not user.is_staff else None
+
     client = None
-    if user is not None and user.is_authenticated:
-        client = Client.objects.filter(user=user).first()
+    if account is not None:
+        client = Client.objects.filter(user=account).first()
     if client is None:
         client = Client.objects.filter(phone=phone).first()
 
     if client is None:
-        client = Client(first_name=first_name, last_name=last_name, phone=phone, email=email)
+        client = Client(first_name=first_name, last_name=last_name, phone=phone, email=email, user=account)
     else:
-        # Never overwrite data the salon already has; only fill in gaps.
-        if not client.email and email:
-            client.email = email
-    if user is not None and user.is_authenticated and client.user_id is None:
-        client.user = user
+        # Never change the salon's record from a public form: a typed phone number proves nothing,
+        # and the email on a record is what links it to an account at login. An account takes over
+        # an existing record only when its verified email matches; otherwise the booking still goes
+        # to that record, but the account does not get to see its history.
+        if (
+            account is not None
+            and client.user_id is None
+            and account.email
+            and client.email == account.email.strip().lower()
+        ):
+            client.user = account
 
     if client.is_blocked or (email and Client.objects.filter(email=email, is_blocked=True).exists()):
         raise BookingError(BLOCKED_MESSAGE)
 
     if consent and client.privacy_consent_at is None:
-        client.privacy_consent_at = timezone.now()
+        client.give_privacy_consent()
     client.save()
     return client
 
