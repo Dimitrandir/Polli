@@ -87,6 +87,16 @@ class StaffDayTests(StaffApiTestCase):
         self.assertEqual(booking["items"][0]["service_name"], "Боядисване на корени")
         self.assertEqual(booking["items"][0]["specialist"], self.poli.pk)
 
+    def test_service_options_are_shown_with_the_name(self):
+        self.colour.option = "къса коса"
+        self.colour.save()
+        self.book(self.poli, self.colour, at(self.day, 10))
+        self.login()
+        day = self.api.get(reverse("api:staff-day"), {"date": self.day.isoformat()}).json()
+        self.assertEqual(day["bookings"][0]["items"][0]["service_name"], "Боядисване на корени - къса коса")
+        services = self.api.get(reverse("api:staff-services")).json()
+        self.assertIn("Боядисване на корени - къса коса", [s["name"] for s in services])
+
     def test_services_list_includes_specialists_prices(self):
         self.login()
         data = self.api.get(reverse("api:staff-services")).json()

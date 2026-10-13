@@ -72,7 +72,7 @@ class StaffClientSerializer(serializers.ModelSerializer):
 class StaffItemSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     service = serializers.IntegerField(source="service_id")
-    service_name = serializers.CharField(source="service.name")
+    service_name = serializers.CharField(source="service.display_name")
     specialist = serializers.IntegerField(source="specialist_id")
     start = serializers.DateTimeField(source="start_at")
     end = serializers.DateTimeField(source="end_at")
@@ -255,7 +255,7 @@ class StaffServicesView(APIView):
             service = offer.service
             entry = services.setdefault(
                 service.pk,
-                {"id": service.pk, "name": service.name, "group": service.group.name, "specialists": []},
+                {"id": service.pk, "name": service.display_name, "group": service.group.name, "specialists": []},
             )
             entry["specialists"].append(
                 {"id": offer.specialist_id, "price": f"{offer.price:.2f}", "duration_minutes": offer.duration_minutes}
@@ -455,7 +455,7 @@ class StaffBookingMoveView(APIView):
             for item in items:
                 if item.specialist_id == source.pk and target != source:
                     if not SpecialistService.objects.filter(specialist=target, service=item.service).exists():
-                        return _error(f"{target.name} не извършва услугата „{item.service.name}“.")
+                        return _error(f"{target.name} не извършва услугата „{item.service.display_name}“.")
                     item.specialist = target
                 item.start_at += delta
                 item.end_at += delta
