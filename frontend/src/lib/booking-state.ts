@@ -108,7 +108,7 @@ export function reducer(state: BookingState, action: Action): BookingState {
 
 /** Two options of one service: same group and name, e.g. "Кичури" on the whole or half of the hair. */
 export function isSameService(a: Service, b: Service): boolean {
-  return a.id !== b.id && a.group === b.group && a.name === b.name;
+  return a.id !== b.id && Boolean(a.option && b.option) && a.group === b.group && a.name === b.name;
 }
 
 export function itemRequests(state: BookingState): ItemRequest[] {
