@@ -60,6 +60,9 @@ export function reducer(state: BookingState, action: Action): BookingState {
     case "toggleService": {
       const exists = state.selected.some((s) => s.id === action.service.id);
       if (exists) return reducer(state, { type: "removeService", id: action.service.id });
+      // Picking another option of the same service ("на дълга коса" instead of "на къса коса") replaces it.
+      const sibling = state.selected.find((s) => isSameService(s, action.service));
+      if (sibling) state = reducer(state, { type: "removeService", id: sibling.id });
       if (state.selected.length >= MAX_SERVICES) return state;
       const only = action.service.specialists.length === 1 ? action.service.specialists[0].id : null;
       return {
@@ -101,6 +104,11 @@ export function reducer(state: BookingState, action: Action): BookingState {
     case "reset":
       return initialState();
   }
+}
+
+/** Two options of one service: same group and name, e.g. "Кичури" on the whole or half of the hair. */
+export function isSameService(a: Service, b: Service): boolean {
+  return a.id !== b.id && a.group === b.group && a.name === b.name;
 }
 
 export function itemRequests(state: BookingState): ItemRequest[] {

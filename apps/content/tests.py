@@ -51,7 +51,9 @@ class ImportSiteContentTests(TestCase):
         self.assertEqual(cut.duration_minutes, 60)
         prices = {ss.specialist.name: ss.price for ss in cut.specialist_services.all()}
         self.assertEqual(prices, {"Павлинка Ботева": Decimal("40.00"), "Радослав Матев": Decimal("40.00")})
-        self.assertTrue(Service.objects.filter(name="Боядисване с амонячна боя — на дълга коса").exists())
+        long_colour = Service.objects.get(name="Боядисване с амонячна боя", option="на дълга коса")
+        self.assertEqual(long_colour.display_name, "Боядисване с амонячна боя - на дълга коса")
+        self.assertEqual(Service.objects.filter(name="Боядисване с амонячна боя").count(), 3)
         # Studio24 only gave a starting price for these, so the salon books them for now.
         self.assertFalse(Service.objects.get(name="Оформяне с маша").is_online_bookable)
 

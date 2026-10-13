@@ -45,7 +45,7 @@ class AvailabilityRequestSerializer(_ItemsMixin):
 
 class PlannedItemSerializer(serializers.Serializer):
     service = serializers.IntegerField(source="service.pk")
-    service_name = serializers.CharField(source="service.name")
+    service_name = serializers.CharField(source="service.display_name")
     specialist = serializers.IntegerField(source="specialist.pk")
     specialist_name = serializers.CharField(source="specialist.name")
     start = serializers.DateTimeField()
@@ -81,7 +81,7 @@ class BookingCreateSerializer(_ItemsMixin):
 
 class BookingItemSerializer(serializers.Serializer):
     service = serializers.IntegerField(source="service_id")
-    service_name = serializers.CharField(source="service.name")
+    service_name = serializers.CharField(source="service.display_name")
     specialist = serializers.IntegerField(source="specialist_id")
     specialist_name = serializers.CharField(source="specialist.name")
     start = serializers.DateTimeField(source="start_at")
