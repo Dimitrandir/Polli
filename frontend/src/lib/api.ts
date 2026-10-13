@@ -105,7 +105,7 @@ export function csrfToken(cookie: string = typeof document === "undefined" ? "" 
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = init?.method && init.method !== "GET" ? csrfToken() : null;
   let response: Response;
   try {

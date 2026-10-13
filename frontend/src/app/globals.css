@@ -146,3 +146,11 @@ body {
   border-top: 1px solid var(--line);
   margin: 3rem 0;
 }
+
+/* Staff calendar (/personal): Studio24's teal and a light theme, whatever the device prefers. */
+.staff-app {
+  --staff: #17a2b0;
+  color-scheme: light;
+  background: #ffffff;
+  color: #171717;
+}

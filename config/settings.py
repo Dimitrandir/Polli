@@ -109,6 +109,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_RATES": {
         "bookings": os.environ.get("BOOKING_CREATE_RATE", "30/hour"),
+        "staff_login": os.environ.get("STAFF_LOGIN_RATE", "10/minute"),
     },
 }
 
