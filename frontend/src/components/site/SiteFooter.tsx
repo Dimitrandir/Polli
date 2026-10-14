@@ -3,6 +3,7 @@ import Link from "next/link";
 import { content } from "@/lib/content";
 import { openingHoursRows } from "@/lib/site";
 
+import { Logo } from "./Logo";
 import { NAV } from "./SiteNav";
 
 export async function SiteFooter() {
@@ -11,7 +12,7 @@ export async function SiteFooter() {
     <footer className="mt-24 border-t border-line/60">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 text-sm text-ink-soft sm:grid-cols-3 sm:px-8">
         <div>
-          <p className="font-display text-2xl font-semibold text-ink">{salon?.name ?? "SIS Esthetics Hair"}</p>
+          <Logo className="h-auto w-24 text-ink" title={salon?.name ?? "SIS Esthetics Hair"} />
           {salon && (
             <address className="mt-4 space-y-1 not-italic">
               <p>{salon.address}</p>
