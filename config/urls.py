@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from apps.accounts import api as accounts_api
+from apps.assistant import api as assistant_api
 from apps.bookings import api as bookings_api
 from apps.bookings import staff_api as team_api
 from apps.catalog import api as catalog_api
@@ -40,6 +41,15 @@ api_urlpatterns = [
     path("articles/", content_api.ArticleListView.as_view(), name="article-list"),
     path("articles/<str:slug>/", content_api.ArticleDetailView.as_view(), name="article-detail"),
     path("pages/<str:slug>/", content_api.PageDetailView.as_view(), name="page-detail"),
+    # The AI assistant.
+    path("assistant/", assistant_api.StatusView.as_view(), name="assistant-status"),
+    path("assistant/chat/", assistant_api.ChatView.as_view(), name="assistant-chat"),
+    path("assistant/conversations/<uuid:pk>/", assistant_api.ConversationView.as_view(), name="assistant-conversation"),
+    path(
+        "assistant/proposals/<uuid:pk>/confirm/",
+        assistant_api.ConfirmProposalView.as_view(),
+        name="assistant-confirm",
+    ),
     # The salon team's calendar.
     path("staff/session/", team_api.StaffSessionView.as_view(), name="staff-session"),
     path("staff/login/", team_api.StaffLoginView.as_view(), name="staff-login"),

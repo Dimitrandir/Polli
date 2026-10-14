@@ -15,8 +15,12 @@ const OLD_SITE_PAGES: Record<string, string> = {
   "/services/": "/uslugi",
 };
 
+const NEW_SITE_PATH = /^\/(statii|uslugi|rezervacia|kontakti|za-nas|obshti-usloviya|poveritelnost)(\/[^/\s]*)?$/;
+
 /** Where a link should point on the new site. Links to the old site go to the matching new page. */
 export function localHref(href: string): string | null {
+  // A path on the new site, e.g. an article link in the assistant's reply.
+  if (NEW_SITE_PATH.test(href)) return href;
   let url: URL;
   try {
     url = new URL(href, "https://sisesthetics.com");

@@ -13,6 +13,11 @@ describe("localHref", () => {
     );
   });
 
+  it("keeps paths on the new site, as the assistant writes them", () => {
+    expect(localHref("/statii/kosopad")).toBe("/statii/kosopad");
+    expect(localHref("/rezervacia")).toBe("/rezervacia");
+  });
+
   it("keeps other sites and drops unsafe links", () => {
     expect(localHref("https://jenskitaini.com/")).toBe("https://jenskitaini.com/");
     expect(localHref("mailto:salon@example.com")).toBe("mailto:salon@example.com");
