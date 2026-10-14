@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AccountLink } from "@/components/account/AccountLink";
+import { LogoInline } from "@/components/site/Logo";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { SiteNav } from "@/components/site/SiteNav";
 
@@ -10,11 +11,8 @@ export default function SiteLayout({ children }: Readonly<{ children: React.Reac
       <div aria-hidden className="backdrop-glow pointer-events-none fixed inset-0 -z-10" />
       <header className="sticky top-0 z-20 border-b border-line/60 bg-bg/70 backdrop-blur-xl">
         <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-8">
-          <Link href="/" className="flex shrink-0 flex-col leading-none sm:flex-row sm:items-baseline sm:gap-2">
-            <span className="font-display text-3xl font-semibold tracking-tight text-ink">SIS</span>
-            <span className="text-[10px] font-semibold whitespace-nowrap uppercase tracking-[0.3em] text-ink-soft sm:text-[11px] sm:tracking-[0.35em]">
-              Esthetics Hair
-            </span>
+          <Link href="/" className="shrink-0 text-ink" title="Начало">
+            <LogoInline className="h-9 w-auto sm:h-11" />
           </Link>
           <SiteNav className="hidden items-center gap-1 md:flex" />
           <div className="flex items-center gap-1">
