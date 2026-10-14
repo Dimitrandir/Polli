@@ -21,6 +21,13 @@ class AdminTests(SalonTestCase):
         self.assertContains(response, "Мария Иванова")
         self.assertContains(response, "10:00–11:30")
 
+    def test_booking_list_shows_time_and_specialist(self):
+        self.book(self.poli, self.colour, at(self.day, 10))
+        response = self.client.get(reverse("admin:bookings_booking_changelist"))
+        self.assertContains(response, f"пн {self.day:%d.%m.%Y}, 10:00–11:30")
+        self.assertContains(response, "Поли Ботева")
+        self.assertNotContains(response, "след обяд")
+
     def test_admin_pages_load(self):
         booking = self.book(self.poli, self.colour, at(self.day, 10))
         for url in [

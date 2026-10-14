@@ -73,7 +73,7 @@ class SpecialistFilter(admin.SimpleListFilter):
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
-    list_display = ["start_at", "client_link", "services", "status", "source", "total"]
+    list_display = ["when", "client_link", "services", "specialists", "status", "source", "total"]
     list_filter = ["status", "source", SpecialistFilter]
     date_hierarchy = "start_at"
     search_fields = ["client__first_name", "client__last_name", "client__phone", "client__email"]
@@ -89,7 +89,12 @@ class BookingAdmin(admin.ModelAdmin):
     actions = ["mark_completed", "mark_no_show", "cancel_by_salon"]
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related("client").prefetch_related("items__service")
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("client")
+            .prefetch_related("items__service", "items__specialist")
+        )
 
     def get_changeform_initial_data(self, request):
         return {"source": BookingSource.SALON}
@@ -103,6 +108,16 @@ class BookingAdmin(admin.ModelAdmin):
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
         form.instance.refresh_time_range()
+
+    @admin.display(description="час", ordering="start_at")
+    def when(self, obj):
+        start, end = timezone.localtime(obj.start_at), timezone.localtime(obj.end_at)
+        weekday = ["пн", "вт", "ср", "чт", "пт", "сб", "нд"][start.weekday()]
+        return f"{weekday} {start:%d.%m.%Y}, {start:%H:%M}–{end:%H:%M}"
+
+    @admin.display(description="специалисти")
+    def specialists(self, obj):
+        return ", ".join(dict.fromkeys(item.specialist.name for item in obj.items.all()))
 
     @admin.display(description="клиент", ordering="client__first_name")
     def client_link(self, obj):
