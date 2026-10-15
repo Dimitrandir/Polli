@@ -14,10 +14,13 @@
   --gold: #c2a073;
   --danger: #b4423a;
   --success: #3f7d5b;
+  color-scheme: light;
 }
 
+/* Dark palette: follows the device unless the visitor picked a theme with the button in the header
+   (stored as data-theme on <html>, see src/lib/theme.ts). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #15110f;
     --surface: #1e1916;
     --surface-2: #28211d;
@@ -30,7 +33,24 @@
     --gold: #d8b98c;
     --danger: #e0786f;
     --success: #7cc39a;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #15110f;
+  --surface: #1e1916;
+  --surface-2: #28211d;
+  --ink: #f4ece5;
+  --ink-soft: #b3a59a;
+  --line: #3a302a;
+  --accent: #d39a7e;
+  --accent-ink: #1a1310;
+  --accent-soft: #3a2a22;
+  --gold: #d8b98c;
+  --danger: #e0786f;
+  --success: #7cc39a;
+  color-scheme: dark;
 }
 
 @theme inline {
