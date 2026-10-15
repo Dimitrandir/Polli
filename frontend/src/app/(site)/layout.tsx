@@ -5,6 +5,7 @@ import { AssistantWidget } from "@/components/assistant/AssistantWidget";
 import { LogoInline } from "@/components/site/Logo";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { SiteNav } from "@/components/site/SiteNav";
+import { ThemeToggle } from "@/components/site/ThemeToggle";
 
 export default function SiteLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -17,6 +18,7 @@ export default function SiteLayout({ children }: Readonly<{ children: React.Reac
           </Link>
           <SiteNav className="hidden items-center gap-1 md:flex" />
           <div className="flex items-center gap-1">
+            <ThemeToggle />
             <AccountLink />
             <Link
               href="/rezervacia"
