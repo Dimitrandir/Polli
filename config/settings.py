@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "apps.salon",
     "apps.content",
     "apps.accounts",
+    "apps.assistant",
 ]
 
 MIDDLEWARE = [
@@ -116,6 +117,7 @@ REST_FRAMEWORK = {
         "login_code": os.environ.get("LOGIN_CODE_RATE", "10/hour"),
         "login": os.environ.get("LOGIN_RATE", "20/hour"),
         "messages": os.environ.get("CLIENT_MESSAGE_RATE", "30/hour"),
+        "assistant": os.environ.get("ASSISTANT_MESSAGE_RATE", "60/hour"),
     },
 }
 
@@ -151,4 +153,20 @@ BOOKING = {
     "CANCELLATION_HOURS": int(os.environ.get("BOOKING_CANCELLATION_HOURS", 24)),
     # Maximum number of days returned by one availability request (week view).
     "MAX_AVAILABILITY_DAYS": 14,
+}
+
+# --- AI assistant ------------------------------------------------------------
+# The chat on the website answers from the salon's articles and books appointments through
+# the Claude API. Without ANTHROPIC_API_KEY the chat button is simply not shown.
+ASSISTANT = {
+    "API_KEY": os.environ.get("ANTHROPIC_API_KEY", ""),
+    "MODEL": os.environ.get("ASSISTANT_MODEL", "claude-opus-5-5"),
+    # low | medium | high: how much the model thinks before answering (more = slower and dearer).
+    "EFFORT": os.environ.get("ASSISTANT_EFFORT", "low"),
+    "MAX_TOOL_ROUNDS": 8,
+    "MAX_MESSAGE_CHARS": 1000,
+    # Visitor messages per conversation; after that the visitor starts a new one.
+    "MAX_TURNS": 30,
+    # `purge_assistant_conversations` deletes conversations older than this.
+    "RETENTION_DAYS": int(os.environ.get("ASSISTANT_RETENTION_DAYS", 90)),
 }

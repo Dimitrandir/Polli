@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AccountLink } from "@/components/account/AccountLink";
+import { AssistantWidget } from "@/components/assistant/AssistantWidget";
 import { LogoInline } from "@/components/site/Logo";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { SiteNav } from "@/components/site/SiteNav";
@@ -29,6 +30,7 @@ export default function SiteLayout({ children }: Readonly<{ children: React.Reac
       </header>
       {children}
       <SiteFooter />
+      <AssistantWidget />
     </>
   );
 }

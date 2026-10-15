@@ -80,6 +80,39 @@ body {
 }
 
 /* Articles and text pages rendered from Markdown. */
+/* Replies of the AI assistant: the same Markdown, sized for a chat bubble. */
+.prose-chat {
+  line-height: 1.55;
+}
+.prose-chat > * + * {
+  margin-top: 0.6rem;
+}
+.prose-chat h2,
+.prose-chat h3,
+.prose-chat h4,
+.prose-chat strong {
+  font-weight: 650;
+}
+.prose-chat a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.prose-chat ul,
+.prose-chat ol {
+  padding-left: 1.25rem;
+}
+.prose-chat ul {
+  list-style: disc;
+}
+.prose-chat ol {
+  list-style: decimal;
+}
+.prose-chat li + li {
+  margin-top: 0.25rem;
+}
+
 .prose-salon {
   color: var(--ink-soft);
   font-size: 1.0625rem;
