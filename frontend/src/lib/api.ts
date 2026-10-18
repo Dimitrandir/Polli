@@ -107,13 +107,15 @@ export function csrfToken(cookie: string = typeof document === "undefined" ? "" 
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = init?.method && init.method !== "GET" ? csrfToken() : null;
+  // A file upload (FormData) sets its own multipart Content-Type.
+  const upload = typeof FormData !== "undefined" && init?.body instanceof FormData;
   let response: Response;
   try {
     response = await fetch(`${BASE}${path}`, {
       ...init,
       credentials: "same-origin",
       headers: {
-        "Content-Type": "application/json",
+        ...(upload ? {} : { "Content-Type": "application/json" }),
         Accept: "application/json",
         ...(token ? { "X-CSRFToken": token } : {}),
         ...init?.headers,

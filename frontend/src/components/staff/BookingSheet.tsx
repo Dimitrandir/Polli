@@ -1,10 +1,10 @@
 "use client";
 
-import { Ban, Check, Globe, IdCard, Mail, Phone, RotateCcw, UserX } from "lucide-react";
+import { Ban, Check, Globe, History, IdCard, Mail, Phone, RotateCcw, UserX } from "lucide-react";
 import { useState } from "react";
 
 import { ApiError } from "@/lib/api";
-import { formatLongDate, formatPrice, formatTime } from "@/lib/format";
+import { formatLongDate, formatPrice, formatShortDate, formatTime } from "@/lib/format";
 import { staffApi, type StaffSpecialist, type StaffBooking } from "@/lib/staff-api";
 
 import { ClientSheet } from "./ClientSheet";
@@ -56,6 +56,7 @@ export function BookingSheet({
   }
 
   const active = booking.status === "confirmed";
+  const editable = booking.can_edit !== false;
 
   if (showClient) {
     return <ClientSheet clientId={booking.client.id} onClose={() => setShowClient(false)} />;
@@ -66,6 +67,11 @@ export function BookingSheet({
       title={`${formatTime(booking.start)} – ${formatTime(booking.end)}`}
       onClose={onClose}
       footer={
+        !editable ? (
+          <p className="text-center text-sm text-neutral-500">
+            Часът е на колега. Може да го променя администратор, специалистът или който го е записал.
+          </p>
+        ) : (
         <div className="grid grid-cols-3 gap-2">
           {active ? (
             <>
@@ -97,6 +103,7 @@ export function BookingSheet({
             </div>
           )}
         </div>
+        )
       }
     >
       <p className="text-sm text-neutral-500">
@@ -170,7 +177,7 @@ export function BookingSheet({
         <Field label="Вътрешна бележка">
           <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} className={inputClass} />
         </Field>
-        {note !== booking.internal_note && (
+        {editable && note !== booking.internal_note && (
           <button
             disabled={busy}
             onClick={() => run(() => staffApi.updateBooking(booking.id, { internal_note: note }), false)}
@@ -180,6 +187,24 @@ export function BookingSheet({
           </button>
         )}
       </div>
+
+      {(booking.history ?? []).length > 0 && (
+        <div className="mt-5">
+          <p className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+            <History size={12} /> История
+          </p>
+          <ul className="space-y-1 text-sm">
+            {booking.history!.map((e, i) => (
+              <li key={i} className="text-neutral-700">
+                <span className="text-neutral-500">
+                  {formatShortDate(e.at)}, {formatTime(e.at)}
+                </span>{" "}
+                · <span className="font-medium text-neutral-900">{e.who}</span> {e.text.charAt(0).toLowerCase() + e.text.slice(1)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">

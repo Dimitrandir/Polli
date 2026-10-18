@@ -1,18 +1,6 @@
 "use client";
 
-import {
-  CalendarDays,
-  CalendarRange,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Columns3,
-  LogOut,
-  Menu,
-  MessageCircle,
-  Plus,
-  RefreshCw,
-} from "lucide-react";
+import { CalendarDays, CalendarRange, ChevronDown, ChevronLeft, ChevronRight, Columns3, Menu, Plus, RefreshCw, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -33,6 +21,7 @@ import { addDays, startOfWeek, todayKey, weekdayParts } from "@/lib/format";
 import {
   staffApi,
   type DaySchedule,
+  type StaffClient,
   type StaffService,
   type StaffSpecialist,
   type TimeOff,
@@ -40,7 +29,9 @@ import {
 } from "@/lib/staff-api";
 
 import { BookingSheet } from "./BookingSheet";
+import { MonthPicker } from "./MonthPicker";
 import { NewBookingSheet, type NewBookingDraft } from "./NewBookingSheet";
+import { MenuItem, MessagesBubble, SectionLinks, useUnread } from "./StaffNav";
 import { PX, TimeGrid, type GridColumn } from "./TimeGrid";
 import { TimeOffSheet } from "./TimeOffSheet";
 
@@ -55,10 +46,13 @@ export function DayCalendar({
   initialDate,
   initialView = "day",
   initialSpecialist = null,
+  bookFor = null,
 }: {
   initialDate?: string;
   initialView?: CalendarView;
   initialSpecialist?: number | null;
+  /** From the clients page: the client to book; the next tap on a free time opens the form for them. */
+  bookFor?: number | null;
 }) {
   const router = useRouter();
   const [date, setDate] = useState(initialDate ?? todayKey());
@@ -72,7 +66,9 @@ export function DayCalendar({
   const [draft, setDraft] = useState<NewBookingDraft | null>(null);
   const [openTimeOff, setOpenTimeOff] = useState<{ timeOff: TimeOff; column: GridColumn } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [unread, setUnread] = useState(0);
+  const [monthOpen, setMonthOpen] = useState(false);
+  const [pending, setPending] = useState<StaffClient | null>(null);
+  const unread = useUnread();
   const [now, setNow] = useState(() => salonClock(new Date()));
   const scroller = useRef<HTMLDivElement>(null);
   const scrolledFor = useRef<string | null>(null);
@@ -121,19 +117,13 @@ export function DayCalendar({
     return () => clearInterval(timer);
   }, [requestKey, load, date, view, weekSpecialist]);
 
-  // Unread messages from clients, shown on the menu button.
   useEffect(() => {
-    const check = () =>
-      staffApi
-        .inbox()
-        .then((inbox) => setUnread(inbox.unread_total))
-        .catch(() => null);
-    void check();
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible") void check();
-    }, REFRESH_MS);
-    return () => clearInterval(timer);
-  }, []);
+    if (!bookFor) return;
+    staffApi
+      .client(bookFor)
+      .then((card) => setPending(card))
+      .catch(() => setPending(null));
+  }, [bookFor]);
 
   useEffect(() => {
     staffApi
@@ -229,7 +219,7 @@ export function DayCalendar({
     const target = column ?? columns.find((c) => c.date === now.date) ?? columns[0];
     if (!target) return;
     const fallback = target.date === now.date ? snapMinutes(now.minutes + 15) : top;
-    setDraft({ date: target.date, specialist: target.specialist, minutes: minutes ?? fallback });
+    setDraft({ date: target.date, specialist: target.specialist, minutes: minutes ?? fallback, client: pending });
   }
 
   async function move(block: Block, column: GridColumn, minutes: number) {
@@ -252,11 +242,6 @@ export function DayCalendar({
     void load();
   }
 
-  async function logout() {
-    await staffApi.logout().catch(() => null);
-    router.replace("/personal/vhod");
-  }
-
   function step(direction: 1 | -1) {
     setDate(addDays(date, direction * (view === "week" ? 7 : 1)));
   }
@@ -274,19 +259,27 @@ export function DayCalendar({
     <div className="flex h-dvh flex-col bg-white text-neutral-900">
       {/* Top bar: date, previous / today / next, menu – like Studio24. */}
       <header className="relative z-30 flex h-14 shrink-0 items-center bg-[var(--staff)] px-3 text-white shadow">
-        <label className="relative flex cursor-pointer flex-col leading-tight">
+        <button
+          aria-label="Избери дата"
+          aria-expanded={monthOpen}
+          onClick={() => setMonthOpen((o) => !o)}
+          className="flex flex-col text-left leading-tight"
+        >
           <span className="flex items-center gap-1 text-lg font-bold whitespace-nowrap">
             {title} <ChevronDown size={16} />
           </span>
           <span className="text-sm opacity-90">{subtitle}</span>
-          <input
-            type="date"
-            aria-label="Избери дата"
+        </button>
+        {monthOpen && (
+          <MonthPicker
             value={date}
-            onChange={(e) => e.target.value && setDate(e.target.value)}
-            className="absolute inset-0 cursor-pointer opacity-0"
+            onPick={(d) => {
+              setDate(d);
+              setMonthOpen(false);
+            }}
+            onClose={() => setMonthOpen(false)}
           />
-        </label>
+        )}
         <div className="mx-auto flex items-center gap-1">
           <button
             aria-label={view === "week" ? "Предишна седмица" : "Предишен ден"}
@@ -346,12 +339,8 @@ export function DayCalendar({
                 setMenuOpen(false);
               }}
             />
-            <MenuItem
-              icon={<MessageCircle size={18} />}
-              label={unread > 0 ? `Съобщения (${unread})` : "Съобщения"}
-              onClick={() => router.push("/personal/saobshtenia")}
-            />
-            <MenuItem icon={<LogOut size={18} />} label="Изход" onClick={logout} />
+            <div className="h-px bg-neutral-200" />
+            <SectionLinks current="calendar" unread={unread} />
           </div>
         )}
       </header>
@@ -379,11 +368,22 @@ export function DayCalendar({
         </div>
       )}
 
+      {pending && (
+        <div className="flex shrink-0 items-center gap-2 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          <span className="flex-1">
+            Изберете свободен час за <strong>{pending.name}</strong>
+          </span>
+          <button aria-label="Откажи записването" onClick={() => setPending(null)} className="p-1">
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
       {error && <p className="bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
 
       <div ref={scroller} className="relative flex-1 overflow-auto overscroll-contain">
         {current && !columns.length ? (
-          <p className="p-6 text-neutral-500">Няма активни специалисти. Добавете ги от админ панела.</p>
+          <p className="p-6 text-neutral-500">Няма активни специалисти. Добавете ги от „Служители“.</p>
         ) : (
           <TimeGrid
             columns={columns}
@@ -405,6 +405,7 @@ export function DayCalendar({
       >
         <Plus size={32} />
       </button>
+      <MessagesBubble unread={unread} />
 
       {selected && (
         <BookingSheet
@@ -421,7 +422,10 @@ export function DayCalendar({
           specialists={specialists}
           services={services}
           onClose={() => setDraft(null)}
-          onCreated={() => load()}
+          onCreated={() => {
+            setPending(null);
+            void load();
+          }}
         />
       )}
       {openTimeOff && (
@@ -437,24 +441,3 @@ export function DayCalendar({
   );
 }
 
-function MenuItem({
-  icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  active?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-neutral-100 ${active ? "font-semibold text-[var(--staff)]" : ""}`}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}

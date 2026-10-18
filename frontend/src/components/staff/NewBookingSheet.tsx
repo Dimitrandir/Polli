@@ -10,7 +10,7 @@ import { staffApi, type StaffSpecialist, type NewClient, type StaffClient, type 
 
 import { Field, inputClass, Sheet } from "./Sheet";
 
-export type NewBookingDraft = { date: string; specialist: number; minutes: number };
+export type NewBookingDraft = { date: string; specialist: number; minutes: number; client?: StaffClient | null };
 
 const EMPTY_CLIENT: NewClient = { first_name: "", last_name: "", phone: "", email: "" };
 
@@ -31,7 +31,7 @@ export function NewBookingSheet({
   const [time, setTime] = useState(clockLabel(draft.minutes));
   const [chosen, setChosen] = useState<number[]>([]);
   const [serviceQuery, setServiceQuery] = useState("");
-  const [client, setClient] = useState<StaffClient | null>(null);
+  const [client, setClient] = useState<StaffClient | null>(draft.client ?? null);
   const [newClient, setNewClient] = useState<NewClient | null>(null);
   const [note, setNote] = useState("");
   const [kind, setKind] = useState<"booking" | "block">("booking");
