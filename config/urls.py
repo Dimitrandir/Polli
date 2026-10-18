@@ -8,11 +8,14 @@ from apps.assistant import api as assistant_api
 from apps.bookings import api as bookings_api
 from apps.bookings import staff_api as team_api
 from apps.catalog import api as catalog_api
+from apps.catalog import staff_api as team_catalog_api
 from apps.clients import api as clients_api
 from apps.clients import staff_api as team_clients_api
 from apps.content import api as content_api
 from apps.salon import api as salon_api
+from apps.salon import staff_api as team_salon_api
 from apps.staff import api as staff_api
+from apps.staff import staff_api as team_members_api
 
 admin.site.site_header = "SIS Esthetics – администрация"
 admin.site.site_title = "SIS Esthetics"
@@ -56,6 +59,7 @@ api_urlpatterns = [
     path("staff/logout/", team_api.StaffLogoutView.as_view(), name="staff-logout"),
     path("staff/day/", team_api.StaffDayView.as_view(), name="staff-day"),
     path("staff/week/", team_api.StaffWeekView.as_view(), name="staff-week"),
+    path("staff/month/", team_api.StaffMonthView.as_view(), name="staff-month"),
     path("staff/services/", team_api.StaffServicesView.as_view(), name="staff-services"),
     path("staff/clients/", team_api.StaffClientSearchView.as_view(), name="staff-clients"),
     path("staff/clients/<int:pk>/", team_clients_api.StaffClientDetailView.as_view(), name="staff-client"),
@@ -73,6 +77,17 @@ api_urlpatterns = [
     path("staff/bookings/<int:pk>/move/", team_api.StaffBookingMoveView.as_view(), name="staff-booking-move"),
     path("staff/time-off/", team_api.StaffTimeOffCreateView.as_view(), name="staff-time-off-create"),
     path("staff/time-off/<int:pk>/", team_api.StaffTimeOffDetailView.as_view(), name="staff-time-off-detail"),
+    # Managing the salon from the team's side.
+    path("staff/team/", team_members_api.TeamView.as_view(), name="staff-team"),
+    path("staff/team/<int:pk>/", team_members_api.TeamMemberView.as_view(), name="staff-team-member"),
+    path("staff/team/<int:pk>/hours/", team_members_api.TeamHoursView.as_view(), name="staff-team-hours"),
+    path("staff/team/<int:pk>/photo/", team_members_api.TeamPhotoView.as_view(), name="staff-team-photo"),
+    path("staff/catalog/", team_catalog_api.CatalogView.as_view(), name="staff-catalog"),
+    path("staff/catalog/services/", team_catalog_api.ServiceCreateView.as_view(), name="staff-service-create"),
+    path("staff/catalog/services/<int:pk>/", team_catalog_api.ServiceDetailView.as_view(), name="staff-service"),
+    path("staff/catalog/groups/", team_catalog_api.GroupCreateView.as_view(), name="staff-group-create"),
+    path("staff/catalog/groups/<int:pk>/", team_catalog_api.GroupDetailView.as_view(), name="staff-group"),
+    path("staff/settings/", team_salon_api.SalonSettingsView.as_view(), name="staff-settings"),
 ]
 
 urlpatterns = [

@@ -1,13 +1,14 @@
 "use client";
 
 import clsx from "clsx";
-import { Lock, Pencil, Phone, Trash2 } from "lucide-react";
+import { CalendarPlus, Lock, Pencil, Phone, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import type { Message } from "@/lib/account-api";
 import { ApiError } from "@/lib/api";
-import { formatLongDate, formatTime } from "@/lib/format";
-import { staffApi, type ClientCard, type ClientNote } from "@/lib/staff-api";
+import { formatLongDate, formatPrice, formatShortDate, formatTime } from "@/lib/format";
+import { staffApi, type ClientCard, type ClientChanges, type ClientNote } from "@/lib/staff-api";
 
 import { ChatThread } from "../chat/ChatThread";
 import { Field, inputClass, Sheet } from "./Sheet";
@@ -119,20 +120,36 @@ function CardTab({
   onChange: (card: ClientCard) => void;
   onError: (e: unknown) => void;
 }) {
+  const router = useRouter();
   const [nickname, setNickname] = useState(card.nickname);
   const [notes, setNotes] = useState(card.notes);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
 
-  async function saveClient(changes: { nickname?: string; notes?: string }) {
+  async function saveClient(changes: ClientChanges) {
     setBusy(true);
     try {
       onChange(await staffApi.updateClient(card.id, changes));
+      return true;
     } catch (e) {
       onError(e);
+      return false;
     } finally {
       setBusy(false);
     }
   }
+
+  function toggleBlock() {
+    if (card.is_blocked) {
+      void saveClient({ is_blocked: false });
+      return;
+    }
+    const reason = window.prompt("Да блокирам ли клиента за онлайн резервации? Причина (по желание):", "");
+    if (reason === null) return;
+    void saveClient({ is_blocked: true, blocked_reason: reason });
+  }
+
+  const stats = card.stats;
 
   return (
     <div className="space-y-5">
@@ -143,9 +160,45 @@ function CardTab({
         >
           <Phone size={16} /> {card.phone}
         </a>
-        {card.email && <span className="text-sm text-neutral-600">{card.email}</span>}
-        {card.is_blocked && <span className="text-sm text-red-600">⛔ блокиран</span>}
+        <button
+          onClick={() => router.push(`/personal?klient=${card.id}`)}
+          className="inline-flex items-center gap-2 rounded-full border border-[var(--staff)] px-4 py-2 text-sm font-semibold text-[var(--staff)]"
+        >
+          <CalendarPlus size={16} /> Запиши час
+        </button>
+        <button
+          onClick={() => setEditing((e) => !e)}
+          className="inline-flex items-center gap-2 rounded-full border border-neutral-300 px-4 py-2 text-sm text-neutral-700"
+        >
+          <Pencil size={14} /> Редактирай
+        </button>
       </div>
+      {card.email && <p className="text-sm text-neutral-600">{card.email}</p>}
+      {card.is_blocked && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          ⛔ Блокиран за онлайн резервации{card.blocked_reason ? `: ${card.blocked_reason}` : ""}
+        </p>
+      )}
+
+      {editing && (
+        <ContactsForm
+          card={card}
+          busy={busy}
+          onSave={async (changes) => {
+            if (await saveClient(changes)) setEditing(false);
+          }}
+          onToggleBlock={toggleBlock}
+        />
+      )}
+
+      {stats && (
+        <div className="grid grid-cols-4 gap-2 text-center">
+          <Stat label="посещения" value={String(stats.visits)} />
+          <Stat label="неявявания" value={String(stats.no_shows)} />
+          <Stat label="отказани" value={String(stats.cancelled)} />
+          <Stat label="похарчени" value={formatPrice(stats.spent)} />
+        </div>
+      )}
       {card.preferred_specialist && (
         <p className="text-sm text-neutral-600">Любим специалист: {card.preferred_specialist}</p>
       )}
@@ -174,7 +227,7 @@ function CardTab({
       <PrivateNotes card={card} onChange={onChange} onError={onError} />
 
       <div>
-        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">Последни посещения</p>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">История на посещенията</p>
         {card.bookings.length === 0 ? (
           <p className="text-sm text-neutral-500">Още няма.</p>
         ) : (
@@ -185,7 +238,11 @@ function CardTab({
                   {formatLongDate(b.start)}, {formatTime(b.start)}
                 </span>
                 <span className="text-neutral-500"> · {STATUS[b.status]}</span>
-                <span className="block text-neutral-600">{b.services}</span>
+                {b.total && <span className="float-right text-neutral-700">{formatPrice(b.total)}</span>}
+                <span className="block text-neutral-600">
+                  {b.services}
+                  {b.specialists && <span className="text-neutral-500"> · {b.specialists}</span>}
+                </span>
               </li>
             ))}
           </ul>
@@ -286,6 +343,81 @@ function PrivateNotes({
         </button>
       </form>
     </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-neutral-50 px-1 py-2">
+      <p className="text-base font-semibold text-neutral-900">{value}</p>
+      <p className="text-[11px] text-neutral-500">{label}</p>
+    </div>
+  );
+}
+
+function ContactsForm({
+  card,
+  busy,
+  onSave,
+  onToggleBlock,
+}: {
+  card: ClientCard;
+  busy: boolean;
+  onSave: (changes: ClientChanges) => void;
+  onToggleBlock: () => void;
+}) {
+  const [form, setForm] = useState({
+    first_name: card.first_name,
+    last_name: card.last_name,
+    phone: card.phone,
+    email: card.email,
+  });
+  const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm({ ...form, [field]: e.target.value });
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave(form);
+      }}
+      className="space-y-3 rounded-xl border border-neutral-200 p-3"
+    >
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Име">
+          <input required value={form.first_name} onChange={set("first_name")} className={inputClass} />
+        </Field>
+        <Field label="Фамилия">
+          <input value={form.last_name} onChange={set("last_name")} className={inputClass} />
+        </Field>
+        <Field label="Телефон">
+          <input required type="tel" value={form.phone} onChange={set("phone")} className={inputClass} />
+        </Field>
+        <Field label="Имейл">
+          <input type="email" value={form.email} onChange={set("email")} className={inputClass} />
+        </Field>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          Запази
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onToggleBlock}
+          className="rounded-lg border border-red-300 px-4 py-2 text-sm text-red-700 disabled:opacity-50"
+        >
+          {card.is_blocked ? "Отблокирай" : "Блокирай"}
+        </button>
+        {card.created_at && (
+          <span className="text-xs text-neutral-500">Клиент от {formatShortDate(card.created_at)}</span>
+        )}
+      </div>
+    </form>
   );
 }
 

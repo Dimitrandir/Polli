@@ -35,6 +35,13 @@ export function formatLongDate(isoOrDate: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/** "18.10.2026" in salon time. */
+export function formatShortDate(iso: string): string {
+  return new Intl.DateTimeFormat(LOCALE, { day: "2-digit", month: "2-digit", year: "numeric", timeZone: SALON_TZ })
+    .format(new Date(iso))
+    .replace(/\s*г\.?$/, "");
+}
+
 const MONTHS_SHORT = ["яну", "фев", "мар", "апр", "май", "юни", "юли", "авг", "сеп", "окт", "ное", "дек"];
 const WEEKDAYS_SHORT = ["нд", "пн", "вт", "ср", "чт", "пт", "сб"];
 

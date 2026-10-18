@@ -16,10 +16,10 @@ from datetime import date as date_cls
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from django.conf import settings
 from django.utils import timezone
 
 from apps.catalog.models import Service
+from apps.salon.rules import booking_rule
 from apps.staff.models import Resource, Specialist, SpecialistService, TimeOff
 from apps.staff.schedule import aware, working_intervals
 
@@ -69,7 +69,7 @@ class _Day:
 
 
 def _booking_rule(name):
-    return settings.BOOKING[name]
+    return booking_rule(name)
 
 
 def _subtract(intervals, busy):

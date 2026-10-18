@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.timezone import localtime
@@ -42,6 +43,15 @@ class Booking(models.Model):
     cancelled_at = models.DateTimeField("отказана на", null=True, blank=True)
     cancelled_by = models.CharField("отказана от", max_length=20, choices=CancelledBy.choices, blank=True)
     cancellation_reason = models.CharField("причина за отказ", max_length=255, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        verbose_name="записана от",
+        help_text="Служителят, който е записал часа. Празно = клиентът онлайн.",
+    )
     created_at = models.DateTimeField("създадена", auto_now_add=True)
     updated_at = models.DateTimeField("обновена", auto_now=True)
 
@@ -123,3 +133,29 @@ class BookingItem(models.Model):
                 f"{self.specialist} вече е зает(а) в този интервал: {clash.booking.client.full_name}, "
                 f"{localtime(clash.start_at):%H:%M}–{localtime(clash.end_at):%H:%M}."
             )
+
+
+class BookingEvent(models.Model):
+    """One line of a booking's history: who booked, moved, cancelled or changed it, and when."""
+
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="events", verbose_name="резервация")
+    at = models.DateTimeField("кога", auto_now_add=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        verbose_name="служител",
+    )
+    # The name at the time of the change, so the history survives renamed or deleted accounts.
+    who = models.CharField("кой", max_length=150)
+    text = models.CharField("какво", max_length=255)
+
+    class Meta:
+        ordering = ["at", "pk"]
+        verbose_name = "промяна"
+        verbose_name_plural = "история"
+
+    def __str__(self):
+        return f"{self.who}: {self.text}"

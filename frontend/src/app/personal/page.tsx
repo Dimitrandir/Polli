@@ -3,14 +3,15 @@ import { DayCalendar } from "@/components/staff/DayCalendar";
 export default async function StaffCalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ d?: string; v?: string; s?: string }>;
+  searchParams: Promise<{ d?: string; v?: string; s?: string; klient?: string }>;
 }) {
-  const { d, v, s } = await searchParams;
+  const { d, v, s, klient } = await searchParams;
   return (
     <DayCalendar
       initialDate={d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined}
       initialView={v === "week" ? "week" : "day"}
       initialSpecialist={s && /^\d+$/.test(s) ? Number(s) : null}
+      bookFor={klient && /^\d+$/.test(klient) ? Number(klient) : null}
     />
   );
 }

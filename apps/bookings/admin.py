@@ -13,7 +13,8 @@ from apps.staff.models import Specialist, SpecialistService, TimeOff
 from apps.staff.schedule import aware, working_intervals
 
 from .availability import BookingError
-from .models import OCCUPYING_STATUSES, Booking, BookingItem, BookingSource, BookingStatus, CancelledBy
+from .history import record
+from .models import OCCUPYING_STATUSES, Booking, BookingEvent, BookingItem, BookingSource, BookingStatus, CancelledBy
 from .services import cancel_booking
 
 
@@ -71,6 +72,17 @@ class SpecialistFilter(admin.SimpleListFilter):
         return queryset
 
 
+class BookingEventInline(admin.TabularInline):
+    model = BookingEvent
+    extra = 0
+    can_delete = False
+    fields = ["at", "who", "text"]
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
     list_display = ["when", "client_link", "services", "specialists", "status", "source", "total"]
@@ -78,14 +90,23 @@ class BookingAdmin(admin.ModelAdmin):
     date_hierarchy = "start_at"
     search_fields = ["client__first_name", "client__last_name", "client__phone", "client__email"]
     autocomplete_fields = ["client"]
-    readonly_fields = ["start_at", "end_at", "cancel_token", "cancelled_at", "cancelled_by", "created_at", "updated_at"]
+    readonly_fields = [
+        "start_at",
+        "end_at",
+        "cancel_token",
+        "cancelled_at",
+        "cancelled_by",
+        "created_by",
+        "created_at",
+        "updated_at",
+    ]
     fieldsets = [
         (None, {"fields": ["client", "status", "source", ("start_at", "end_at")]}),
         ("Бележки", {"fields": ["note", "internal_note"]}),
         ("Отказ", {"fields": ["cancelled_at", "cancelled_by", "cancellation_reason"], "classes": ["collapse"]}),
-        ("Служебни", {"fields": ["cancel_token", "created_at", "updated_at"], "classes": ["collapse"]}),
+        ("Служебни", {"fields": ["cancel_token", "created_by", "created_at", "updated_at"], "classes": ["collapse"]}),
     ]
-    inlines = [BookingItemInline]
+    inlines = [BookingItemInline, BookingEventInline]
     actions = ["mark_completed", "mark_no_show", "cancel_by_salon"]
 
     def get_queryset(self, request):
@@ -103,11 +124,17 @@ class BookingAdmin(admin.ModelAdmin):
         if not obj.start_at:
             # Placeholder until the items are saved; refresh_time_range() sets the real values.
             obj.start_at = obj.end_at = timezone.now()
+        if not change:
+            obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
         form.instance.refresh_time_range()
+        if not change:
+            record(form.instance, "Записа часа от админ панела", user=request.user)
+        elif form.has_changed() or any(f.has_changed() for f in formsets):
+            record(form.instance, "Промени часа от админ панела", user=request.user)
 
     @admin.display(description="час", ordering="start_at")
     def when(self, obj):
@@ -147,7 +174,7 @@ class BookingAdmin(admin.ModelAdmin):
         done = 0
         for booking in queryset:
             try:
-                cancel_booking(booking, by=CancelledBy.SALON, reason="Отказана от салона")
+                cancel_booking(booking, by=CancelledBy.SALON, reason="Отказана от салона", user=request.user)
                 done += 1
             except BookingError:
                 pass
