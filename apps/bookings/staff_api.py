@@ -1,14 +1,16 @@
 """API for the salon team: login and the daily calendar (the staff side of the booking system).
 
 Everyone with "staff status" in the admin can use it. All specialists see the whole salon's day,
-like in Studio24.
+like in Studio24, and anyone may book a client with any colleague. Changing a booking is for an
+administrator, the specialists in it and whoever booked it; blocking time is for an administrator
+and the specialist themselves (see apps.staff.roles).
 """
 
 from datetime import date, time, timedelta
 
 from django.contrib.auth import authenticate, login, logout
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Max, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -23,13 +25,16 @@ from apps.catalog.models import Service
 from apps.clients.models import Client
 from apps.clients.phone import normalize_phone
 from apps.staff.models import Specialist, SpecialistService, TimeOff
+from apps.staff.roles import can_manage_specialist, is_salon_admin
 from apps.staff.schedule import aware, working_intervals
 
 from .availability import BookingError, ItemRequest
+from .history import history, record, when
 from .models import OCCUPYING_STATUSES, Booking, BookingItem, BookingSource, BookingStatus, CancelledBy
 from .services import cancel_booking, create_booking
 
 CLIENT_SEARCH_LIMIT = 20
+RECENT_CLIENTS = 30
 
 
 class IsSalonStaff(permissions.BasePermission):
@@ -54,8 +59,19 @@ def _user_payload(user):
             "username": user.get_username(),
             "name": (specialist.name if specialist else user.get_full_name()) or user.get_username(),
             "specialist": specialist.pk if specialist else None,
+            "is_admin": is_salon_admin(user),
         },
     }
+
+
+def can_manage_booking(user, booking):
+    """An administrator, the specialists doing the visit and whoever booked it."""
+    if is_salon_admin(user) or (booking.created_by_id and booking.created_by_id == user.pk):
+        return True
+    return any(can_manage_specialist(user, item.specialist_id) for item in booking.items.all())
+
+
+NOT_YOURS = "Можете да променяте само своите часове. Помолете администратор или колегата."
 
 
 # --- serializers ---------------------------------------------------------------
@@ -85,6 +101,8 @@ class StaffBookingSerializer(serializers.ModelSerializer):
     client = StaffClientSerializer()
     items = StaffItemSerializer(many=True)
     total_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    history = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -100,7 +118,20 @@ class StaffBookingSerializer(serializers.ModelSerializer):
             "items",
             "total_price",
             "created_at",
+            "history",
+            "can_edit",
         ]
+
+    def get_history(self, booking):
+        return [{**e, "at": timezone.localtime(e["at"]).isoformat()} for e in history(booking)]
+
+    def get_can_edit(self, booking):
+        user = self.context.get("user")
+        return bool(user and can_manage_booking(user, booking))
+
+
+def _serialize(request, booking_or_list, many=False):
+    return StaffBookingSerializer(booking_or_list, many=many, context={"user": request.user}).data
 
 
 def _interval(start, end):
@@ -108,7 +139,7 @@ def _interval(start, end):
 
 
 def _bookings():
-    return Booking.objects.select_related("client").prefetch_related("items__service")
+    return Booking.objects.select_related("client", "created_by").prefetch_related("items__service", "events")
 
 
 # --- session -------------------------------------------------------------------
@@ -203,7 +234,7 @@ class StaffDayView(APIView):
                 "date": day.isoformat(),
                 "timezone": str(timezone.get_current_timezone()),
                 "specialists": [{**_specialist_payload(s), **per_specialist[s.pk]} for s in specialists],
-                "bookings": StaffBookingSerializer(_active_bookings(ids, *_day_bounds(day)), many=True).data,
+                "bookings": _serialize(request, _active_bookings(ids, *_day_bounds(day)), many=True),
             }
         )
 
@@ -234,7 +265,7 @@ class StaffWeekView(APIView):
                 "days": [
                     {"date": d.isoformat(), **_hours_and_time_off([specialist.pk], d)[specialist.pk]} for d in days
                 ],
-                "bookings": StaffBookingSerializer(bookings, many=True).data,
+                "bookings": _serialize(request, bookings, many=True),
             }
         )
 
@@ -273,6 +304,14 @@ class StaffClientSearchView(APIView):
 
     def get(self, request):
         query = request.query_params.get("q", "").strip()
+        if not query:
+            # The clients page opens on the clients seen most recently.
+            recent = (
+                Client.objects.annotate(last_visit=Max("bookings__start_at"))
+                .filter(last_visit__isnull=False)
+                .order_by("-last_visit")[:RECENT_CLIENTS]
+            )
+            return Response(StaffClientSerializer(recent, many=True).data)
         if len(query) < 2:
             return Response([])
         condition = Q(email__icontains=query) | Q(nickname__icontains=query)
@@ -284,6 +323,22 @@ class StaffClientSearchView(APIView):
             condition |= Q(phone__contains=digits.lstrip("0") or digits)
         clients = Client.objects.filter(condition).order_by("first_name", "last_name")[:CLIENT_SEARCH_LIMIT]
         return Response(StaffClientSerializer(clients, many=True).data)
+
+    def post(self, request):
+        """A new client added from the clients page."""
+        data = NewClientSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        v = data.validated_data
+        phone = normalize_phone(v["phone"])
+        if len(phone) < 8:
+            return _error("Въведете валиден телефон.")
+        existing = Client.objects.filter(phone=phone).first()
+        if existing:
+            return _error(f"Вече има клиент с този телефон: {existing.full_name}.")
+        client = Client.objects.create(
+            first_name=v["first_name"].strip(), last_name=v["last_name"].strip(), phone=phone, email=v["email"]
+        )
+        return Response(StaffClientSerializer(client).data, status=status.HTTP_201_CREATED)
 
 
 class NewClientSerializer(serializers.Serializer):
@@ -344,6 +399,7 @@ class StaffBookingCreateView(APIView):
                 note=v["note"],
                 source=BookingSource.SALON,
                 for_staff=True,
+                by=request.user,
             )
         except BookingError as exc:
             return _error(str(exc))
@@ -351,7 +407,7 @@ class StaffBookingCreateView(APIView):
             booking.internal_note = v["internal_note"]
             booking.save(update_fields=["internal_note", "updated_at"])
         booking = _bookings().get(pk=booking.pk)
-        return Response(StaffBookingSerializer(booking).data, status=status.HTTP_201_CREATED)
+        return Response(_serialize(request, booking), status=status.HTTP_201_CREATED)
 
 
 class StaffBookingUpdateSerializer(serializers.Serializer):
@@ -361,26 +417,42 @@ class StaffBookingUpdateSerializer(serializers.Serializer):
     internal_note = serializers.CharField(required=False, allow_blank=True, max_length=1000)
 
 
+STATUS_CHANGE = {
+    BookingStatus.CONFIRMED: "Върна часа като потвърден",
+    BookingStatus.COMPLETED: "Отбеляза като изпълнен",
+    BookingStatus.NO_SHOW: "Отбеляза неявяване",
+}
+
+
 class StaffBookingDetailView(APIView):
     """Open a booking, mark it done / no-show, or edit the internal note."""
 
     permission_classes = [IsSalonStaff]
 
     def get(self, request, pk):
-        return Response(StaffBookingSerializer(get_object_or_404(_bookings(), pk=pk)).data)
+        return Response(_serialize(request, get_object_or_404(_bookings(), pk=pk)))
 
     def patch(self, request, pk):
         booking = get_object_or_404(_bookings(), pk=pk)
         data = StaffBookingUpdateSerializer(data=request.data)
         data.is_valid(raise_exception=True)
         v = data.validated_data
+        if not can_manage_booking(request.user, booking):
+            return _error(NOT_YOURS, status.HTTP_403_FORBIDDEN)
         if "status" in v and booking.status == BookingStatus.CANCELLED:
             return _error("Резервацията е отказана.")
+        changes = []
+        if "status" in v and v["status"] != booking.status:
+            changes.append(STATUS_CHANGE[v["status"]])
+        if "internal_note" in v and v["internal_note"] != booking.internal_note:
+            changes.append("Промени вътрешната бележка")
         for field in ("status", "internal_note"):
             if field in v:
                 setattr(booking, field, v[field])
         booking.save()
-        return Response(StaffBookingSerializer(booking).data)
+        for text in changes:
+            record(booking, text, user=request.user)
+        return Response(_serialize(request, _bookings().get(pk=pk)))
 
 
 class StaffCancelSerializer(serializers.Serializer):
@@ -394,11 +466,18 @@ class StaffBookingCancelView(APIView):
         booking = get_object_or_404(_bookings(), pk=pk)
         data = StaffCancelSerializer(data=request.data)
         data.is_valid(raise_exception=True)
+        if not can_manage_booking(request.user, booking):
+            return _error(NOT_YOURS, status.HTTP_403_FORBIDDEN)
         try:
-            cancel_booking(booking, by=CancelledBy.SALON, reason=data.validated_data["reason"] or "Отказана от салона")
+            cancel_booking(
+                booking,
+                by=CancelledBy.SALON,
+                reason=data.validated_data["reason"] or "Отказана от салона",
+                user=request.user,
+            )
         except BookingError as exc:
             return _error(str(exc))
-        return Response(StaffBookingSerializer(booking).data)
+        return Response(_serialize(request, _bookings().get(pk=pk)))
 
 
 class StaffMoveSerializer(serializers.Serializer):
@@ -429,7 +508,7 @@ def _conflict(specialist, start, busy_until, booking_id):
         return f"{specialist.name} отсъства по това време."
     day = timezone.localtime(start).date()
     if not any(a <= start and busy_until <= b for a, b in working_intervals([specialist.pk], day)[specialist.pk]):
-        return f"{specialist.name} не работи по това време. Сменете работното време от админ панела, ако е нужно."
+        return f"{specialist.name} не работи по това време. Работното време се сменя от „Служители“."
     return None
 
 
@@ -447,6 +526,13 @@ class StaffBookingMoveView(APIView):
             if booking.status != BookingStatus.CONFIRMED:
                 return _error("Може да се местят само потвърдени часове.")
             items = list(booking.items.select_related("service", "specialist"))
+            if not (
+                is_salon_admin(request.user)
+                or booking.created_by_id == request.user.pk
+                or any(can_manage_specialist(request.user, i.specialist_id) for i in items)
+            ):
+                return _error(NOT_YOURS, status.HTTP_403_FORBIDDEN)
+            old_start = booking.start_at
             moved = next((i for i in items if i.pk == v["item"]), None)
             if moved is None:
                 return _error("Услугата не е от тази резервация.")
@@ -470,7 +556,11 @@ class StaffBookingMoveView(APIView):
                     return _error(problem)
             BookingItem.objects.bulk_update(items, ["specialist", "start_at", "end_at", "busy_until"])
             booking.refresh_time_range()
-        return Response(StaffBookingSerializer(_bookings().get(pk=pk)).data)
+            text = f"Премести часа от {when(old_start)} на {when(booking.start_at)}" if delta else "Премести часа"
+            if target != source:
+                text += f" (от {source.name} при {target.name})"
+            record(booking, text, user=request.user)
+        return Response(_serialize(request, _bookings().get(pk=pk)))
 
 
 class StaffTimeOffSerializer(serializers.ModelSerializer):
@@ -479,6 +569,9 @@ class StaffTimeOffSerializer(serializers.ModelSerializer):
         fields = ["id", "specialist", "start", "end", "reason"]
 
     def validate(self, data):
+        user = self.context["request"].user
+        if not can_manage_specialist(user, data["specialist"].pk):
+            raise serializers.ValidationError("Можете да блокирате време само в своя график.")
         if data["end"] <= data["start"]:
             raise serializers.ValidationError("Краят трябва да е след началото.")
         clash = (
@@ -505,7 +598,7 @@ class StaffTimeOffCreateView(APIView):
     permission_classes = [IsSalonStaff]
 
     def post(self, request):
-        data = StaffTimeOffSerializer(data=request.data)
+        data = StaffTimeOffSerializer(data=request.data, context={"request": request})
         data.is_valid(raise_exception=True)
         data.save()
         return Response(data.data, status=status.HTTP_201_CREATED)
@@ -515,5 +608,49 @@ class StaffTimeOffDetailView(APIView):
     permission_classes = [IsSalonStaff]
 
     def delete(self, request, pk):
-        get_object_or_404(TimeOff, pk=pk).delete()
+        block = get_object_or_404(TimeOff, pk=pk)
+        if not can_manage_specialist(request.user, block.specialist_id):
+            return _error("Можете да махате само своите блокирани часове.", status.HTTP_403_FORBIDDEN)
+        block.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class StaffMonthView(APIView):
+    """The month picker: how busy each specialist is on each day (booked time / working time), like Studio24."""
+
+    permission_classes = [IsSalonStaff]
+
+    def get(self, request):
+        first = _date_param(request).replace(day=1)
+        next_month = (first + timedelta(days=32)).replace(day=1)
+        days = [first + timedelta(days=n) for n in range((next_month - first).days)]
+        specialists = list(Specialist.objects.filter(is_active=True))
+        ids = [s.pk for s in specialists]
+        booked = {}
+        items = BookingItem.objects.filter(
+            specialist_id__in=ids,
+            booking__status__in=OCCUPYING_STATUSES,
+            start_at__gte=_day_bounds(first)[0],
+            start_at__lt=_day_bounds(next_month)[0],
+        ).values_list("specialist_id", "start_at", "end_at")
+        for specialist_id, start, end in items:
+            key = (timezone.localtime(start).date(), specialist_id)
+            booked[key] = booked.get(key, 0) + (end - start).total_seconds() / 60
+        result = {}
+        for day in days:
+            hours = working_intervals(ids, day)
+            loads = {}
+            for sid in ids:
+                working = sum((b - a).total_seconds() / 60 for a, b in hours[sid])
+                minutes = booked.get((day, sid), 0)
+                if working or minutes:
+                    # 0 = free, 1 = full; a day off with bookings counts as full.
+                    loads[sid] = round(min(1, minutes / working), 2) if working else 1
+            result[day.isoformat()] = loads
+        return Response(
+            {
+                "month": first.isoformat(),
+                "specialists": [_specialist_payload(s) for s in specialists],
+                "days": result,
+            }
+        )

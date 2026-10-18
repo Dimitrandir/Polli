@@ -139,6 +139,7 @@ class ConfirmProposalView(APIView):
                 start=proposal.start_at,
                 parallel=proposal.parallel,
                 note=proposal.note,
+                who="клиентът чрез асистента на сайта",
             )
         except BookingError as exc:
             return _error(str(exc))

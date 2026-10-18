@@ -2,15 +2,16 @@
 
 from datetime import timedelta
 
-from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
 from apps.clients.models import Client
 from apps.clients.phone import normalize_phone
+from apps.salon.rules import booking_rule
 from apps.staff.models import Resource, Specialist
 
 from .availability import AvailabilityEngine, BookingError
+from .history import record
 from .models import Booking, BookingItem, BookingSource, BookingStatus, CancelledBy
 
 BLOCKED_MESSAGE = "В момента не можем да приемем онлайн резервация. Моля, свържете се със салона по телефона."
@@ -57,8 +58,19 @@ def resolve_client(*, first_name, last_name="", phone, email="", user=None, cons
 
 
 def create_booking(
-    *, client, requests, start, parallel=False, note="", source=BookingSource.ONLINE, for_staff=False, now=None
+    *,
+    client,
+    requests,
+    start,
+    parallel=False,
+    note="",
+    source=BookingSource.ONLINE,
+    for_staff=False,
+    now=None,
+    by=None,
+    who=None,
 ):
+    """Book the visit. `by` is the team member who booked it (None = the client online)."""
     if client.is_blocked and not for_staff:
         raise BookingError(BLOCKED_MESSAGE)
 
@@ -70,7 +82,10 @@ def create_booking(
         slot = engine.plan_at(start)
         if slot is None:
             raise BookingError("Избраният час вече не е свободен. Моля, изберете друг.")
-        booking = Booking.objects.create(client=client, start_at=slot.start, end_at=slot.end, note=note, source=source)
+        staff = by if by is not None and by.is_authenticated and by.is_staff else None
+        booking = Booking.objects.create(
+            client=client, start_at=slot.start, end_at=slot.end, note=note, source=source, created_by=staff
+        )
         BookingItem.objects.bulk_create(
             BookingItem(
                 booking=booking,
@@ -84,21 +99,22 @@ def create_booking(
             )
             for item in slot.items
         )
+        record(booking, "Записа часа", user=staff, who=who)
     return booking
 
 
 def can_client_cancel(booking, now=None):
     now = now or timezone.now()
-    deadline = booking.start_at - timedelta(hours=settings.BOOKING["CANCELLATION_HOURS"])
+    deadline = booking.start_at - timedelta(hours=booking_rule("CANCELLATION_HOURS"))
     return booking.status == BookingStatus.CONFIRMED and now <= deadline
 
 
-def cancel_booking(booking, *, by=CancelledBy.CLIENT, reason="", now=None):
+def cancel_booking(booking, *, by=CancelledBy.CLIENT, reason="", now=None, user=None):
     now = now or timezone.now()
     if booking.status != BookingStatus.CONFIRMED:
         raise BookingError("Резервацията вече не е активна.")
     if by == CancelledBy.CLIENT and not can_client_cancel(booking, now):
-        hours = settings.BOOKING["CANCELLATION_HOURS"]
+        hours = booking_rule("CANCELLATION_HOURS")
         raise BookingError(
             f"Онлайн отказ е възможен до {hours} часа преди началото. Моля, свържете се със салона по телефона."
         )
@@ -107,4 +123,6 @@ def cancel_booking(booking, *, by=CancelledBy.CLIENT, reason="", now=None):
     booking.cancelled_by = by
     booking.cancellation_reason = reason
     booking.save(update_fields=["status", "cancelled_at", "cancelled_by", "cancellation_reason", "updated_at"])
+    who = None if user is not None else ("клиентът" if by == CancelledBy.CLIENT else "салонът")
+    record(booking, f"Отказа часа: {reason}" if reason else "Отказа часа", user=user, who=who)
     return booking

@@ -16,6 +16,25 @@ class SalonInfo(models.Model):
     instagram = models.URLField("Instagram", blank=True)
     tiktok = models.URLField("TikTok", blank=True)
     booking_policy = models.TextField("условия при резервация", blank=True)
+    # Online booking rules. Empty = the default from the server settings (settings.BOOKING).
+    max_days_ahead = models.PositiveIntegerField(
+        "записване до (дни напред)",
+        null=True,
+        blank=True,
+        help_text="Колко дни напред клиентите могат да си запишат час онлайн.",
+    )
+    min_notice_minutes = models.PositiveIntegerField(
+        "най-рано след (мин.)",
+        null=True,
+        blank=True,
+        help_text="Колко минути след момента е най-ранният час, който клиент може да запише онлайн.",
+    )
+    cancellation_hours = models.PositiveIntegerField(
+        "онлайн отказ до (часа преди)",
+        null=True,
+        blank=True,
+        help_text="До колко часа преди началото клиентът може да откаже сам.",
+    )
 
     class Meta:
         verbose_name = "информация за салона"
