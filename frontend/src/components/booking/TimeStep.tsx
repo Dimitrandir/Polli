@@ -75,7 +75,7 @@ export function TimeStep({
 
   return (
     <section>
-      <StepHeading eyebrow="Стъпка 3" title="Кога ви е удобно?" hint="Показваме само часовете, в които всичко избрано е свободно." />
+      <StepHeading eyebrow="Стъпка 2" title="Кога ви е удобно?" hint="Показваме само часовете, в които всичко избрано е свободно." />
 
       {notice && (
         <p role="alert" className="mb-6 rounded-2xl bg-accent-soft px-4 py-3 text-sm text-ink">

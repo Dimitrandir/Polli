@@ -5,14 +5,28 @@ import { Check, Clock, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 
-import type { Category, Service } from "@/lib/api";
-import { type Action, type BookingState, MAX_SERVICES, offerFor } from "@/lib/booking-state";
+import type { Category, Service, ServiceGroup } from "@/lib/api";
+import {
+  type Action,
+  type BookingState,
+  categorySpecialists,
+  MAX_SERVICES,
+  offerFor,
+  pickedSpecialist,
+} from "@/lib/booking-state";
 import { formatDuration, formatPrice } from "@/lib/format";
 import { itemRange, type MenuItem, menuItems, searchMenu } from "@/lib/services";
 
 import { Collapsible } from "../ui/Collapsible";
 import { SearchField } from "../ui/SearchField";
+import { ParallelChoice, SpecialistPicker } from "./SpecialistChoice";
 import { StepHeading } from "./StepHeading";
+
+/** The group with only the services the specialist performs; all of them for "no preference". */
+function forSpecialist(group: ServiceGroup, specialist: number | null): ServiceGroup {
+  if (specialist === null) return group;
+  return { ...group, services: group.services.filter((s) => s.specialists.some((o) => o.id === specialist)) };
+}
 
 export function ServicesStep({
   categories,
@@ -35,14 +49,22 @@ export function ServicesStep({
   const selectedIds = new Set(state.selected.map((s) => s.id));
   const full = state.selected.length >= MAX_SERVICES;
   const results = query.trim() ? searchMenu(categories, query) : null;
-  const onlyGroup = category?.groups.length === 1;
+  const people = category ? categorySpecialists(category) : [];
+  // A category nobody books online shows its services as they are ("Само по телефона").
+  const picked = !category ? undefined : people.length ? pickedSpecialist(state, category) : null;
+  const groups =
+    picked === undefined || !category
+      ? []
+      : category.groups.map((g) => forSpecialist(g, picked)).filter((g) => g.services.length > 0);
+  const onlyGroup = groups.length === 1;
 
-  const cards = (items: MenuItem[]) => (
+  const cards = (items: MenuItem[], specialist: number | null) => (
     <div className="grid gap-3 sm:grid-cols-2">
       {items.map((item) => (
         <ServiceCard
           key={item.key}
           item={item}
+          specialist={specialist}
           selectedIds={selectedIds}
           full={full}
           onToggle={(service) => dispatch({ type: "toggleService", service })}
@@ -55,8 +77,8 @@ export function ServicesStep({
     <section>
       <StepHeading
         eyebrow="Стъпка 1"
-        title="Изберете услуги"
-        hint="Можете да добавите няколко услуги в една резервация."
+        title="Специалист и услуги"
+        hint="Цените зависят от специалиста, затова първо изберете при кого. В една резервация може да има няколко услуги."
       />
 
       <SearchField value={query} onChange={setQuery} className="mb-6" />
@@ -87,9 +109,21 @@ export function ServicesStep({
         </div>
       )}
 
+      {!results && category && people.length > 0 && (
+        <div className="mb-8">
+          <h3 className="mb-3 font-display text-2xl font-semibold text-ink">При кого?</h3>
+          <SpecialistPicker
+            label={`Специалист за ${category.name}`}
+            people={people}
+            value={picked}
+            onChange={(id) => dispatch({ type: "setCategorySpecialist", category: category.slug, specialistId: id })}
+          />
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
         <motion.div
-          key={results ? "search" : category?.slug}
+          key={results ? "search" : `${category?.slug}:${picked}`}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
@@ -101,17 +135,17 @@ export function ServicesStep({
                 groups.map(({ group, items }) => (
                   <div key={group.id}>
                     <GroupHeading name={group.name} count={items.length} category={c.name} />
-                    {cards(items)}
+                    {cards(items, pickedSpecialist(state, c) ?? null)}
                   </div>
                 )),
               )
-            : category?.groups.map((group) => {
+            : groups.map((group) => {
                 const items = menuItems(group);
                 // Closed by default, except a category's only group and a group with a chosen service.
                 const openByDefault =
                   onlyGroup || items.some((i) => i.options.some((o) => selectedIds.has(o.id)));
                 const open = openGroups.get(group.id) ?? openByDefault;
-                const prices = items.flatMap((i) => i.options.map((o) => offerFor(o, null).price));
+                const prices = items.flatMap((i) => i.options.map((o) => offerFor(o, picked ?? null).price));
                 return (
                   <Collapsible
                     key={group.id}
@@ -132,18 +166,22 @@ export function ServicesStep({
                       </span>
                     }
                   >
-                    <div className="p-1 pt-4">{cards(items)}</div>
+                    <div className="p-1 pt-4">{cards(items, picked ?? null)}</div>
                   </Collapsible>
                 );
               })}
           {results && results.length === 0 && (
             <p className="text-ink-soft">Няма услуги, които отговарят на „{query.trim()}“.</p>
           )}
-          {!results && category && category.groups.length === 0 && (
+          {!results && picked === undefined && (
+            <p className="text-ink-soft">Изберете специалист, за да видите услугите и цените.</p>
+          )}
+          {!results && category && picked !== undefined && groups.length === 0 && (
             <p className="text-ink-soft">В тази категория все още няма услуги за онлайн резервация.</p>
           )}
         </motion.div>
       </AnimatePresence>
+      {state.selected.length > 1 && <ParallelChoice state={state} dispatch={dispatch} />}
       {full && (
         <p className="mt-6 text-sm text-ink-soft">
           Една резервация може да съдържа до {MAX_SERVICES} услуги.
@@ -167,11 +205,14 @@ const isBookable = (s: Service) => s.is_online_bookable && s.specialists.length 
 
 function ServiceCard({
   item,
+  specialist,
   selectedIds,
   full,
   onToggle,
 }: {
   item: MenuItem;
+  /** Prices are shown for this specialist; null = the lowest one. */
+  specialist: number | null;
   selectedIds: Set<number>;
   full: boolean;
   onToggle: (service: Service) => void;
@@ -190,7 +231,7 @@ function ServiceCard({
 
   if (item.options.length === 1) {
     const service = item.options[0];
-    const offer = offerFor(service, null);
+    const offer = offerFor(service, specialist);
     return (
       <motion.button
         layout
@@ -226,7 +267,7 @@ function ServiceCard({
     );
   }
 
-  const range = itemRange(item, (s) => offerFor(s, null).price);
+  const range = itemRange(item, (s) => offerFor(s, specialist).price);
   return (
     <motion.div layout role="group" aria-label={item.name} className={frame}>
       <div className="flex items-start justify-between gap-4">
@@ -241,7 +282,7 @@ function ServiceCard({
       )}
       <ul className="mt-3 space-y-1.5">
         {item.options.map((option) => {
-          const offer = offerFor(option, null);
+          const offer = offerFor(option, specialist);
           const on = selectedIds.has(option.id);
           const disabled = !isBookable(option) || (blocked && !on);
           return (

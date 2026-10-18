@@ -3,6 +3,7 @@ from django.urls import reverse
 
 from apps.bookings.admin import BookingItemForm
 from apps.bookings.models import Booking
+from apps.staff.models import Specialist
 
 from .factories import SalonTestCase, at
 
@@ -39,6 +40,17 @@ class AdminTests(SalonTestCase):
             reverse("admin:clients_client_change", args=[self.client_obj.pk]),
         ]:
             self.assertEqual(self.client.get(url).status_code, 200, url)
+
+    def test_new_specialist_gets_every_service_of_a_category(self):
+        data = {"name": "Ели", "order": 4, "is_active": "on", "is_online_bookable": "on"}
+        data["add_categories"] = [self.manicure.group.category_id]
+        for prefix in ["specialist_services", "working_hours", "schedule_overrides", "time_off"]:
+            data |= {f"{prefix}-TOTAL_FORMS": 0, f"{prefix}-INITIAL_FORMS": 0}
+        response = self.client.post(reverse("admin:staff_specialist_add"), data)
+        self.assertEqual(response.status_code, 302)
+        eli = Specialist.objects.get(name="Ели")
+        self.assertEqual([ss.service for ss in eli.specialist_services.all()], [self.manicure])
+        self.assertIsNone(eli.specialist_services.get().price_override)
 
     def test_item_form_fills_in_end_and_price(self):
         booking = Booking.objects.create(client=self.client_obj, start_at=at(self.day, 10), end_at=at(self.day, 10))

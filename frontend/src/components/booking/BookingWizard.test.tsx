@@ -74,10 +74,11 @@ describe("BookingWizard", () => {
 
     render(<BookingWizard initialCategories={categories} />);
 
+    // The specialist comes first, then their services with their own prices.
+    expect(screen.queryByRole("button", { name: /Боядисване на корени/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: /Поли/ }));
+    expect(screen.getByRole("button", { name: /Боядисване на корени/ })).toHaveTextContent("80,00");
     await user.click(screen.getByRole("button", { name: /Боядисване на корени/ }));
-    await user.click(screen.getAllByRole("button", { name: /Продължи/ })[0]);
-
-    await user.click(await screen.findByRole("radio", { name: /Поли/ }));
     await user.click(screen.getAllByRole("button", { name: /Продължи/ })[0]);
 
     // The current week (12–18 Oct) is the first request; the next week has the slot.
@@ -111,9 +112,8 @@ describe("BookingWizard", () => {
     });
 
     render(<BookingWizard initialCategories={categories} />);
+    await user.click(screen.getByRole("radio", { name: /Без предпочитание/ }));
     await user.click(screen.getByRole("button", { name: /Боядисване на корени/ }));
-    await user.click(screen.getAllByRole("button", { name: /Продължи/ })[0]);
-    await screen.findByRole("heading", { name: "При кого?" });
     await user.click(screen.getAllByRole("button", { name: /Продължи/ })[0]);
     await user.click(await screen.findByRole("button", { name: "09:00" }));
     await user.click(screen.getAllByRole("button", { name: /Към данните/ })[0]);

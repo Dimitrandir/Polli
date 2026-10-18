@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { colour, manicure, service, slot } from "@/test/fixtures";
+import { categories, colour, manicure, service, slot } from "@/test/fixtures";
 
-import { canContinue, estimate, initialState, itemRequests, MAX_SERVICES, reducer } from "./booking-state";
+import {
+  canContinue,
+  categorySpecialists,
+  estimate,
+  initialState,
+  itemRequests,
+  MAX_SERVICES,
+  pickedSpecialist,
+  reducer,
+} from "./booking-state";
 
 const start = () => initialState(new Date("2026-10-15T10:00:00Z"));
 
@@ -82,5 +91,33 @@ describe("booking state", () => {
     expect(state.step).toBe("time");
     expect(state.slot).toBeNull();
     expect(state.version).toBe(1);
+  });
+
+  it("books the services of a category with the specialist picked for it", () => {
+    const [hair, nails] = categories;
+    expect(categorySpecialists(hair).map((p) => p.name)).toEqual(["Поли", "Иван"]);
+    let state = start();
+    expect(pickedSpecialist(state, hair)).toBeUndefined();
+    // The only manicurist needs no picking.
+    expect(pickedSpecialist(state, nails)).toBe(3);
+
+    state = reducer(state, { type: "setCategorySpecialist", category: "kosa", specialistId: 2 });
+    state = reducer(state, { type: "toggleService", service: colour });
+    expect(state.specialists[colour.id]).toBe(2);
+    expect(estimate(state).price).toBe(60);
+
+    state = reducer(state, { type: "setCategorySpecialist", category: "kosa", specialistId: 1 });
+    expect(state.specialists[colour.id]).toBe(1);
+    state = reducer(state, { type: "setCategorySpecialist", category: "kosa", specialistId: null });
+    expect(state.specialists[colour.id]).toBeNull();
+  });
+
+  it("drops chosen services the new specialist does not perform", () => {
+    const ivan = { id: 2, name: "Иван", price: "30.00", duration_minutes: 60 };
+    const cut = service({ id: 9, name: "Подстригване", specialists: [ivan] });
+    let state = reducer(start(), { type: "toggleService", service: cut });
+    state = reducer(state, { type: "toggleService", service: manicure });
+    state = reducer(state, { type: "setCategorySpecialist", category: "kosa", specialistId: 1 });
+    expect(state.selected.map((s) => s.id)).toEqual([manicure.id]);
   });
 });
