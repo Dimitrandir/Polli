@@ -86,7 +86,7 @@ export function DetailsStep({
 
   return (
     <section>
-      <StepHeading eyebrow="Стъпка 4" title="Вашите данни" hint="Ще ви изпратим потвърждение. Плащането е на място в салона." />
+      <StepHeading eyebrow="Стъпка 3" title="Вашите данни" hint="Ще ви изпратим потвърждение. Плащането е на място в салона." />
 
       <form onSubmit={submit} className="space-y-5">
         <div className="grid gap-5 sm:grid-cols-2">

@@ -11,7 +11,6 @@ import { Skeleton } from "../ui/Skeleton";
 import { DetailsStep } from "./DetailsStep";
 import { DoneStep } from "./DoneStep";
 import { ServicesStep } from "./ServicesStep";
-import { SpecialistsStep } from "./SpecialistsStep";
 import { Stepper } from "./Stepper";
 import { MobileBar, Summary } from "./Summary";
 import { TimeStep } from "./TimeStep";
@@ -58,7 +57,7 @@ export function BookingWizard({
   const next = () => go(nextStep(state.step));
 
   const direction = useRef(1);
-  const order: Step[] = ["services", "specialists", "time", "details", "done"];
+  const order: Step[] = ["services", "time", "details", "done"];
   const previousIndex = useRef(0);
   const index = order.indexOf(state.step);
   if (index !== previousIndex.current) {
@@ -108,7 +107,6 @@ export function BookingWizard({
                     ))}
                   </div>
                 ))}
-              {state.step === "specialists" && <SpecialistsStep state={state} dispatch={dispatch} />}
               {state.step === "time" && <TimeStep state={state} dispatch={dispatch} notice={notice} />}
               {state.step === "details" && (
                 <DetailsStep

@@ -9,7 +9,12 @@ import { service } from "@/test/fixtures";
 
 import { ServicesStep } from "./ServicesStep";
 
-const cut = service({ id: 3, name: "Дамско подстригване", group: 3 });
+const cut = service({
+  id: 3,
+  name: "Дамско подстригване",
+  group: 3,
+  specialists: [{ id: 2, name: "Иван", price: "30.00", duration_minutes: 60 }],
+});
 const colour = service({ id: 4, name: "Боядисване на корени", group: 4 });
 const hair: Category[] = [
   {
@@ -32,6 +37,7 @@ describe("ServicesStep", () => {
   it("shows a group's services when its header is clicked", async () => {
     const user = userEvent.setup();
     render(<Step />);
+    await user.click(screen.getByRole("radio", { name: /Без предпочитание/ }));
 
     const group = screen.getByRole("button", { name: /Подстригване и прически/ });
     expect(group).toHaveAttribute("aria-expanded", "false");
@@ -51,5 +57,20 @@ describe("ServicesStep", () => {
 
     await user.type(screen.getByRole("searchbox"), "корени");
     expect(screen.getByRole("button", { name: /Боядисване на корени/ })).toBeInTheDocument();
+  });
+
+  it("shows only the chosen specialist's services, at their prices", async () => {
+    const user = userEvent.setup();
+    render(<Step />);
+    expect(screen.getByText(/Изберете специалист, за да видите/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: /Поли/ }));
+    // Поли does not cut, so only colouring is left and its group opens.
+    expect(screen.queryByRole("button", { name: /Подстригване и прически/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Боядисване на корени/ })).toHaveTextContent("80,00");
+
+    await user.click(screen.getByRole("radio", { name: /Иван/ }));
+    await user.click(screen.getByRole("button", { name: /Боядисване и кичури/ }));
+    expect(screen.getByRole("button", { name: /Боядисване на корени/ })).toHaveTextContent("60,00");
   });
 });
