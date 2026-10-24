@@ -7,11 +7,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import { accountApi, type Message } from "@/lib/account-api";
 import { ApiError } from "@/lib/api";
+import { usePolling } from "@/lib/use-polling";
 
 import { ChatThread } from "../chat/ChatThread";
 import { Skeleton } from "../ui/Skeleton";
 
-const REFRESH_MS = 30_000;
+// New messages from the salon show up without reloading the page.
+const REFRESH_MS = 5_000;
 
 export function ClientMessages() {
   const router = useRouter();
@@ -33,9 +35,9 @@ export function ClientMessages() {
         return load();
       })
       .catch((e: unknown) => setError(e instanceof ApiError ? e.message : "Нещо се обърка. Опитайте отново."));
-    const timer = window.setInterval(() => void load().catch(() => null), REFRESH_MS);
-    return () => window.clearInterval(timer);
   }, [router, load]);
+
+  usePolling(load, REFRESH_MS, messages !== null);
 
   async function send(text: string) {
     setError(null);
