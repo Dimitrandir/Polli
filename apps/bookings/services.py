@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from apps.clients.models import Client
 from apps.clients.phone import normalize_phone
+from apps.clients.services import client_for
 from apps.salon.rules import booking_rule
 from apps.staff.models import Resource, Specialist
 
@@ -27,9 +28,7 @@ def resolve_client(*, first_name, last_name="", phone, email="", user=None, cons
     # Staff who book from the public site in their own browser book for someone else.
     account = user if user is not None and user.is_authenticated and not user.is_staff else None
 
-    client = None
-    if account is not None:
-        client = Client.objects.filter(user=account).first()
+    client = client_for(account) if account is not None else None
     if client is None:
         client = Client.objects.filter(phone=phone).first()
 

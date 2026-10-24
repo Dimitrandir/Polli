@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from apps.clients.models import Client
+from apps.clients.services import client_for
 
 from .google import verify_google_credential
 from .services import AuthError, any_code_allowed, send_login_code, user_for_email, verify_login_code
@@ -31,7 +31,7 @@ def session_payload(user):
     payload = {"authenticated": False, "user": None, "google_client_id": settings.GOOGLE_CLIENT_ID}
     if not (user.is_authenticated and not user.is_staff):
         return payload
-    client = Client.objects.filter(user=user).first()
+    client = client_for(user)
     unread = client.messages.filter(from_client=False, read_at__isnull=True).count() if client else 0
     payload["authenticated"] = True
     payload["user"] = {

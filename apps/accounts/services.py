@@ -11,7 +11,7 @@ from django.core.mail import send_mail
 from django.db.models import F
 from django.utils import timezone
 
-from apps.clients.models import Client
+from apps.clients.services import link_by_email
 
 from .models import LoginCode
 
@@ -101,17 +101,5 @@ def user_for_email(email, first_name="", last_name=""):
 
 
 def link_client(user):
-    """Attach the salon's existing client record (earlier bookings as a guest) to a new account.
-
-    Only by the verified email: a phone number typed into a form proves nothing, so a match by
-    phone alone never links (the salon can link it by hand in the admin).
-    """
-    if Client.objects.filter(user=user).exists() or not user.email:
-        return None
-    matches = list(Client.objects.filter(email=normalize_email(user.email), user__isnull=True)[:2])
-    if len(matches) != 1:
-        return None
-    client = matches[0]
-    client.user = user
-    client.save(update_fields=["user"])
-    return client
+    """Attach the salon's existing client record (earlier bookings as a guest) to the account."""
+    return link_by_email(user)
