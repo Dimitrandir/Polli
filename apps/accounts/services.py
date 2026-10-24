@@ -31,6 +31,12 @@ def _hash(email, code):
     return hmac.new(settings.SECRET_KEY.encode(), f"{email}:{code}".encode(), hashlib.sha256).hexdigest()
 
 
+def any_code_allowed():
+    """Testing mode: every code logs in. Follows DEBUG unless LOGIN_ANY_CODE is set."""
+    flag = settings.LOGIN_ANY_CODE
+    return settings.DEBUG if flag is None else flag
+
+
 def send_login_code(email, now=None):
     now = now or timezone.now()
     email = normalize_email(email)
@@ -56,6 +62,10 @@ def verify_login_code(email, code, now=None):
     now = now or timezone.now()
     email = normalize_email(email)
     code = (code or "").strip()
+    if any_code_allowed():
+        if not code:
+            raise AuthError("Въведете код.")
+        return user_for_email(email)
     ttl = timedelta(minutes=settings.LOGIN_CODE_TTL_MINUTES)
     login_code = LoginCode.objects.filter(email=email, used_at__isnull=True, created_at__gte=now - ttl).first()
     if login_code is None:

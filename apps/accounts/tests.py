@@ -96,6 +96,31 @@ class EmailCodeLoginTests(AccountTestCase):
         self.assertFalse(self.session()["authenticated"])
 
 
+class AnyCodeLoginTests(AccountTestCase):
+    @override_settings(LOGIN_ANY_CODE=True)
+    def test_any_code_logs_in_without_email(self):
+        response = self.request_code()
+        self.assertIn("Тестов режим", response.json()["detail"])
+        self.assertEqual(len(mail.outbox), 0)
+        response = self.verify("123456")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(self.session()["authenticated"])
+
+    @override_settings(LOGIN_ANY_CODE=True)
+    def test_staff_still_cannot_use_client_login(self):
+        User.objects.create_user("poli", email="poli@example.com", password="x", is_staff=True)
+        response = self.verify("123456", "poli@example.com")
+        self.assertEqual(response.status_code, 400)
+
+    @override_settings(LOGIN_ANY_CODE=None, DEBUG=True)
+    def test_follows_debug_when_not_set(self):
+        self.assertEqual(self.verify("123456").status_code, 200)
+
+    @override_settings(LOGIN_ANY_CODE=False, DEBUG=True)
+    def test_can_be_turned_off(self):
+        self.assertEqual(self.verify("123456").status_code, 400)
+
+
 class LinkGuestBookingsTests(AccountTestCase):
     def test_earlier_guest_record_is_linked_by_verified_email(self):
         self.client_obj.email = "maria@example.com"
