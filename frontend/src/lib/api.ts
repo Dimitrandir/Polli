@@ -84,11 +84,21 @@ export class ApiError extends Error {
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 const FALLBACK = "Нещо се обърка. Моля, опитайте отново след малко.";
 
+/** Django's own English security messages, said in Bulgarian. */
+function readableDetail(detail: string): string {
+  const origin = detail.match(/Origin checking failed - (\S+) does not match/);
+  if (origin) {
+    return `Сървърът не приема заявки от адрес ${origin[1]}. Добавете го в DJANGO_CSRF_TRUSTED_ORIGINS и рестартирайте сървъра.`;
+  }
+  if (detail.startsWith("CSRF Failed")) return "Сесията изтече. Презаредете страницата и опитайте отново.";
+  return detail;
+}
+
 /** Turn a DRF error body into one readable Bulgarian sentence. */
 function messageFrom(body: unknown): string {
   if (!body || typeof body !== "object") return FALLBACK;
   const record = body as Record<string, unknown>;
-  if (typeof record.detail === "string") return record.detail;
+  if (typeof record.detail === "string") return readableDetail(record.detail);
   for (const value of Object.values(record)) {
     if (Array.isArray(value) && typeof value[0] === "string") return value[0];
     if (value && typeof value === "object") {

@@ -36,3 +36,15 @@ describe("request headers", () => {
     }
   });
 });
+
+describe("security errors", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("says in Bulgarian which address the server refuses", async () => {
+    const detail = "CSRF Failed: Origin checking failed - http://192.168.1.5:3000 does not match any trusted origins.";
+    vi.stubGlobal("fetch", () => Promise.resolve(new Response(JSON.stringify({ detail }), { status: 403 })));
+    await expect(api.cancelBooking("abc")).rejects.toThrow(
+      "Сървърът не приема заявки от адрес http://192.168.1.5:3000. Добавете го в DJANGO_CSRF_TRUSTED_ORIGINS и рестартирайте сървъра.",
+    );
+  });
+});
