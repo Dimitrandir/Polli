@@ -7,6 +7,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.catalog.models import Service
+from apps.clients.services import link_by_email
 from apps.staff.models import Specialist
 
 from .availability import AvailabilityEngine, BookingError, ItemRequest
@@ -199,4 +200,6 @@ class MyBookingsView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        # Visits the salon booked for this email since the client last logged in count too.
+        link_by_email(self.request.user)
         return _booking_queryset().filter(client__user=self.request.user).order_by("-start_at")

@@ -8,7 +8,8 @@ from .models import Client, Message
 from .phone import normalize_phone
 
 PHONE_TAKEN = (
-    "Този телефон вече е записан в салона. Обадете се ни, за да свържем профила ви с досегашните ви посещения."
+    "Този телефон вече е записан в салона. Помолете салона да впише имейла, с който влизате, към вашия запис"
+    " – профилът ще се свърже сам с досегашните ви посещения."
 )
 
 
@@ -17,7 +18,33 @@ class ProfileError(Exception):
 
 
 def client_for(user):
-    return Client.objects.filter(user=user).first()
+    """The client record of a logged-in client account, linking an existing record when it can."""
+    client = Client.objects.filter(user=user).first()
+    if client is None:
+        client = link_by_email(user)
+    return client
+
+
+def link_by_email(user):
+    """Attach the salon's existing client record to an account that has none yet.
+
+    The salon may add the client (a booking from the staff calendar, a guest booking) before or
+    after the account is made, so this runs whenever the account's record is looked up, not only
+    at login. Only by the verified email: a phone number typed into a form proves nothing, so a
+    match by phone alone never links (the salon can link it by hand in the admin). An email on more
+    than one record is ambiguous and links nothing.
+    """
+    if user is None or not user.is_authenticated or user.is_staff or not user.email:
+        return None
+    if Client.objects.filter(user=user).exists():
+        return None
+    matches = list(Client.objects.filter(email=user.email.strip().lower(), user__isnull=True)[:2])
+    if len(matches) != 1:
+        return None
+    client = matches[0]
+    client.user = user
+    client.save(update_fields=["user"])
+    return client
 
 
 def staff_display_name(user):

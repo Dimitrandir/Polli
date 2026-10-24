@@ -376,6 +376,9 @@ function ClientPicker({
             className={inputClass}
           />
           <input placeholder="Имейл" type="email" value={newClient.email} onChange={set("email")} className={inputClass} />
+          <p className="col-span-2 text-xs text-neutral-500">
+            С този имейл клиентът вижда часовете си в профила на сайта.
+          </p>
         </div>
       </div>
     );

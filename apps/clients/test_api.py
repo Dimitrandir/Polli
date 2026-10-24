@@ -119,6 +119,46 @@ class BookingLinkTests(ClientAccountTestCase):
         self.assertEqual(len(self.api.get(reverse("api:my-bookings")).json()), 1)
 
 
+class StaffBookingLinkTests(ClientAccountTestCase):
+    """A visit booked from the staff calendar shows up for a client who is already logged in."""
+
+    def staff_books(self, **new_client):
+        staff = APIClient()
+        staff.force_authenticate(User.objects.create_user("poli", is_staff=True))
+        payload = {
+            "new_client": {"first_name": "Петя", "last_name": "Петрова", "phone": "0877 000 111", **new_client},
+            "specialist": self.poli.pk,
+            "services": [self.cut.pk],
+            "start": at(self.day, 15).isoformat(),
+        }
+        response = staff.post(reverse("api:staff-booking-create"), payload, format="json")
+        self.assertEqual(response.status_code, 201, response.content)
+
+    def test_same_email_links_while_logged_in(self):
+        self.assertFalse(self.api.get(reverse("api:me")).json()["complete"])
+        self.staff_books(email="Petya@Example.com")
+
+        profile = self.api.get(reverse("api:me")).json()
+        self.assertTrue(profile["complete"])
+        self.assertEqual((profile["first_name"], profile["last_name"]), ("Петя", "Петрова"))
+        self.assertEqual(self.api.get(reverse("api:auth-session")).json()["user"]["name"], "Петя Петрова")
+        self.assertEqual(Client.objects.get(phone="+359877000111").user, self.user)
+
+    def test_visit_list_links_too(self):
+        self.staff_books(email="petya@example.com")
+        self.assertEqual(len(self.api.get(reverse("api:my-bookings")).json()), 1)
+
+    def test_without_email_nothing_is_linked(self):
+        self.staff_books()
+        self.assertFalse(self.api.get(reverse("api:me")).json()["complete"])
+        self.assertEqual(self.api.get(reverse("api:my-bookings")).json(), [])
+        self.assertIsNone(Client.objects.get(phone="+359877000111").user)
+
+    def test_other_email_is_not_linked(self):
+        self.staff_books(email="someone@example.com")
+        self.assertFalse(self.api.get(reverse("api:me")).json()["complete"])
+
+
 class MessagesTests(ClientAccountTestCase):
     def setUp(self):
         super().setUp()
