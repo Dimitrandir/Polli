@@ -5,7 +5,9 @@ in CI and in production.
 """
 
 import os
+import socket
 from pathlib import Path
+from urllib.parse import urlsplit
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -21,6 +23,24 @@ ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,12
 # Origins allowed to send unsafe requests with the session cookie (the frontend).
 _DEFAULT_FRONTEND = "http://localhost:3000,http://127.0.0.1:3000"
 CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", _DEFAULT_FRONTEND).split(",") if o]
+
+
+def _local_network_ips():
+    """This computer's IPv4 addresses in the local network (for testing from a phone)."""
+    ips = set()
+    try:
+        ips.update(info[4][0] for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET))
+    except OSError:
+        pass
+    try:
+        # Connecting a UDP socket sends nothing; it only picks the interface used for the internet.
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("10.255.255.255", 1))
+            ips.add(probe.getsockname()[0])
+    except OSError:
+        pass
+    return sorted(ip for ip in ips if not ip.startswith("127."))
+
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -135,6 +155,13 @@ LOGIN_ANY_CODE = env_bool("LOGIN_ANY_CODE") if _login_any_code else None
 PRIVACY_POLICY_VERSION = os.environ.get("PRIVACY_POLICY_VERSION", "2026-10")
 # Public address of the site, used in links inside emails.
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+
+# While testing, the site opened from a phone or another computer in the same network
+# (http://192.168.x.x:3000) may also send forms. Live, list the site's address in
+# DJANGO_CSRF_TRUSTED_ORIGINS instead.
+if DEBUG:
+    _frontend_port = urlsplit(FRONTEND_URL).port or 3000
+    CSRF_TRUSTED_ORIGINS += [f"http://{ip}:{_frontend_port}" for ip in _local_network_ips()]
 
 EMAIL_BACKEND = os.environ.get("DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")

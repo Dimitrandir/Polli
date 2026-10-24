@@ -35,7 +35,11 @@ export function ChatThread({
   const [sending, setSending] = useState(false);
   const end = useRef<HTMLDivElement>(null);
 
-  useEffect(() => end.current?.scrollIntoView({ block: "end" }), [messages.length]);
+  // Keep the newest message and the box to write in on screen. (Braces: newer browsers return a
+  // Promise from scrollIntoView, and an effect may only return a clean-up function.)
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: "end" });
+  }, [messages.length]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -74,7 +78,6 @@ export function ChatThread({
           );
         })}
       </ol>
-      <div ref={end} />
       {disabled ? (
         <p className={clsx("rounded-xl px-3 py-2 text-sm", meta)}>{disabled}</p>
       ) : (
@@ -104,6 +107,7 @@ export function ChatThread({
           </button>
         </form>
       )}
+      <div ref={end} />
     </div>
   );
 }

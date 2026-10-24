@@ -164,6 +164,11 @@ python manage.py runserver           # админ: http://localhost:8000/admin/
 
 Тестове и проверки: `python manage.py test`, `ruff check . && ruff format --check .`
 
+От телефон или друг компютър в същата мрежа сайтът се отваря на `http://<IP на компютъра>:3000`. При
+`DJANGO_DEBUG=true` този адрес е разрешен автоматично. На истинския сървър адресът на сайта трябва да е в
+`DJANGO_CSRF_TRUSTED_ORIGINS` (и домейнът в `DJANGO_ALLOWED_HOSTS`), иначе изпращането на форми връща
+„CSRF Failed: Origin checking failed“.
+
 ## Съдържание от стария сайт
 
 `data/old-site/` съдържа съдържанието на sisesthetics.com към 13.10.2026: 67 услуги в 9 групи с цени в евро и
