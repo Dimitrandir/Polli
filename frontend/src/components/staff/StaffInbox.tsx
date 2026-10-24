@@ -12,7 +12,7 @@ import { staffApi, type Inbox } from "@/lib/staff-api";
 
 import { ClientSheet } from "./ClientSheet";
 
-const REFRESH_MS = 30_000;
+const REFRESH_MS = 10_000;
 
 function when(iso: string) {
   return todayKey(new Date(iso)) === todayKey() ? formatTime(iso) : formatLongDate(iso);

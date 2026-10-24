@@ -9,6 +9,7 @@ import type { Message } from "@/lib/account-api";
 import { ApiError } from "@/lib/api";
 import { formatLongDate, formatPrice, formatShortDate, formatTime } from "@/lib/format";
 import { staffApi, type ClientCard, type ClientChanges, type ClientNote } from "@/lib/staff-api";
+import { usePolling } from "@/lib/use-polling";
 
 import { ChatThread } from "../chat/ChatThread";
 import { Field, inputClass, Sheet } from "./Sheet";
@@ -21,6 +22,8 @@ const STATUS: Record<ClientCard["bookings"][number]["status"], string> = {
   no_show: "неявяване",
   cancelled: "отказана",
 };
+
+const MESSAGES_REFRESH_MS = 5_000;
 
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Нещо се обърка. Опитайте отново.");
 
@@ -51,6 +54,10 @@ export function ClientSheet({
   useEffect(() => {
     if (tab === "messages") void loadMessages();
   }, [tab, loadMessages]);
+
+  // The client's replies show up while the conversation is open.
+  const pollMessages = useCallback(() => staffApi.messages(clientId).then(setMessages), [clientId]);
+  usePolling(pollMessages, MESSAGES_REFRESH_MS, tab === "messages");
 
   async function send(text: string) {
     setError(null);
