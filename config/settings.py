@@ -127,6 +127,10 @@ REST_FRAMEWORK = {
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 LOGIN_CODE_TTL_MINUTES = 10
 LOGIN_CODE_MAX_ATTEMPTS = 5
+# Testing only: client login accepts any 6-digit code (no email needed). Empty = on while DEBUG is on.
+# Set LOGIN_ANY_CODE=false (or DJANGO_DEBUG=false) before going live.
+_login_any_code = os.environ.get("LOGIN_ANY_CODE", "").strip()
+LOGIN_ANY_CODE = env_bool("LOGIN_ANY_CODE") if _login_any_code else None
 # Bump when the privacy policy changes; every consent records the version it was given for.
 PRIVACY_POLICY_VERSION = os.environ.get("PRIVACY_POLICY_VERSION", "2026-10")
 # Public address of the site, used in links inside emails.

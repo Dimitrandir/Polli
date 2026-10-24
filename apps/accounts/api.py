@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from apps.clients.models import Client
 
 from .google import verify_google_credential
-from .services import AuthError, send_login_code, user_for_email, verify_login_code
+from .services import AuthError, any_code_allowed, send_login_code, user_for_email, verify_login_code
 
 BACKEND = "django.contrib.auth.backends.ModelBackend"
 
@@ -74,6 +74,8 @@ class EmailCodeRequestView(APIView):
     def post(self, request):
         data = EmailSerializer(data=request.data)
         data.is_valid(raise_exception=True)
+        if any_code_allowed():
+            return Response({"detail": "Тестов режим: въведете който и да е 6-цифрен код."})
         send_login_code(data.validated_data["email"])
         return Response({"detail": "Изпратихме ви код за вход. Проверете пощата си (и папка „Спам“)."})
 
