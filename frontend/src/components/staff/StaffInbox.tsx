@@ -10,6 +10,7 @@ import { ApiError } from "@/lib/api";
 import { formatLongDate, formatTime, todayKey } from "@/lib/format";
 import { staffApi, type Inbox } from "@/lib/staff-api";
 
+import { PushToggle } from "../push/PushToggle";
 import { ClientSheet } from "./ClientSheet";
 
 const REFRESH_MS = 10_000;
@@ -37,6 +38,12 @@ export function StaffInbox() {
     }
   }, [router]);
 
+  // A tapped notification opens the conversation it is about (?client=<id>).
+  useEffect(() => {
+    const id = Number(new URLSearchParams(window.location.search).get("client"));
+    if (id) setOpen(id);
+  }, []);
+
   useEffect(() => {
     void load();
     const timer = setInterval(() => {
@@ -54,6 +61,7 @@ export function StaffInbox() {
         <h1 className="text-lg font-bold">Съобщения</h1>
       </header>
 
+      <PushToggle variant="staff" />
       {error && <p className="bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
 
       {inbox === null ? (

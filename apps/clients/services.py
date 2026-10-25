@@ -209,7 +209,31 @@ def post_message(client, text, *, sender=None, from_client=False):
         )
     if from_client:
         notify_salon(message)
+    push_message(message)
     return message
+
+
+def push_message(message):
+    """A notification on the phone: to the client's devices, or to the team's when the client wrote."""
+    from apps.push.services import notify, staff_users
+
+    client = message.client
+    if message.from_client:
+        notify(
+            staff_users(),
+            title=client.full_name,
+            body=message.text,
+            url=f"/personal/saobshtenia?client={client.pk}",
+            tag=f"client-{client.pk}",
+        )
+    elif client.user_id:
+        notify(
+            [client.user],
+            title=f"{staff_display_name(message.sender)} от SIS Esthetics",
+            body=message.text,
+            url="/profil/saobshtenia",
+            tag="salon",
+        )
 
 
 def notify_salon(message):

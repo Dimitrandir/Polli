@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ApiError } from "@/lib/api";
+import { disablePush } from "@/lib/push";
 import { staffApi, type StaffUser } from "@/lib/staff-api";
 
 const REFRESH_MS = 60_000;
@@ -95,6 +96,7 @@ export function SectionLinks({ current, unread }: { current?: Section; unread: n
   const user = useStaffUser();
 
   async function logout() {
+    await disablePush().catch(() => null);
     await staffApi.logout().catch(() => null);
     router.replace("/personal/vhod");
   }
