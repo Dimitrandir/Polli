@@ -60,6 +60,27 @@ class BookingRightsTests(ManageTestCase):
         self.as_admin()
         self.assertEqual(self.api.patch(url, {"status": "completed"}, format="json").status_code, 200)
 
+    def test_anyone_on_the_team_moves_an_online_booking(self):
+        self.as_ivan()
+        online = self.book(self.poli, self.colour, at(self.day, 14))  # the client booked it on the site
+        salon = self.book(self.poli, self.cut, at(self.day, 10))
+        salon.source = "salon"
+        salon.save()
+
+        def move(booking, hour):
+            return self.api.post(
+                reverse("api:staff-booking-move", args=[booking.pk]),
+                {"item": booking.items.get().pk, "start": at(self.day, hour).isoformat(), "specialist": self.poli.pk},
+                format="json",
+            )
+
+        self.assertEqual(move(online, 15).status_code, 200)
+        online.refresh_from_db()
+        self.assertEqual(online.start_at, at(self.day, 15))
+        self.assertEqual(move(salon, 11).status_code, 403)  # a colleague's visit booked in the salon
+        cancel = reverse("api:staff-booking-cancel", args=[online.pk])
+        self.assertEqual(self.api.post(cancel).status_code, 403)  # moving only
+
     def test_time_off_only_in_own_schedule(self):
         self.as_ivan()
         payload = {

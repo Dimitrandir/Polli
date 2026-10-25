@@ -72,6 +72,11 @@ def can_manage_booking(user, booking):
     return any(can_manage_specialist(user, item.specialist_id) for item in booking.items.all())
 
 
+def can_move_booking(user, booking):
+    """Like `can_manage_booking`, but a client's own online booking may be moved by anyone on the team."""
+    return booking.source == BookingSource.ONLINE or can_manage_booking(user, booking)
+
+
 NOT_YOURS = "Можете да променяте само своите часове. Помолете администратор или колегата."
 
 
@@ -527,11 +532,7 @@ class StaffBookingMoveView(APIView):
             if booking.status != BookingStatus.CONFIRMED:
                 return _error("Може да се местят само потвърдени часове.")
             items = list(booking.items.select_related("service", "specialist"))
-            if not (
-                is_salon_admin(request.user)
-                or booking.created_by_id == request.user.pk
-                or any(can_manage_specialist(request.user, i.specialist_id) for i in items)
-            ):
+            if not can_move_booking(request.user, booking):
                 return _error(NOT_YOURS, status.HTTP_403_FORBIDDEN)
             old_start = booking.start_at
             moved = next((i for i in items if i.pk == v["item"]), None)
