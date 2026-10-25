@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { accountApi, EXPORT_URL, type Profile, type ProfileChanges } from "@/lib/account-api";
 import { ApiError, type Booking } from "@/lib/api";
+import { disablePush } from "@/lib/push";
 
 import { BookingCard } from "../booking/BookingCard";
 import { Button } from "../ui/Button";
@@ -55,6 +56,7 @@ export function AccountView({ specialists }: { specialists: SpecialistOption[] }
   }
 
   async function logout() {
+    await disablePush().catch(() => null);
     await accountApi.logout().catch(() => null);
     router.replace("/");
     router.refresh();

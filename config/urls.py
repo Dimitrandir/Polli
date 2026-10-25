@@ -12,6 +12,7 @@ from apps.catalog import staff_api as team_catalog_api
 from apps.clients import api as clients_api
 from apps.clients import staff_api as team_clients_api
 from apps.content import api as content_api
+from apps.push import api as push_api
 from apps.salon import api as salon_api
 from apps.salon import staff_api as team_salon_api
 from apps.staff import api as staff_api
@@ -44,6 +45,10 @@ api_urlpatterns = [
     path("articles/", content_api.ArticleListView.as_view(), name="article-list"),
     path("articles/<str:slug>/", content_api.ArticleDetailView.as_view(), name="article-detail"),
     path("pages/<str:slug>/", content_api.PageDetailView.as_view(), name="page-detail"),
+    # Push notifications on this device.
+    path("push/", push_api.PushStatusView.as_view(), name="push-status"),
+    path("push/subscribe/", push_api.SubscribeView.as_view(), name="push-subscribe"),
+    path("push/unsubscribe/", push_api.UnsubscribeView.as_view(), name="push-unsubscribe"),
     # The AI assistant.
     path("assistant/", assistant_api.StatusView.as_view(), name="assistant-status"),
     path("assistant/chat/", assistant_api.ChatView.as_view(), name="assistant-chat"),

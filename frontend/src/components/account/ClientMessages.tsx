@@ -10,6 +10,7 @@ import { ApiError } from "@/lib/api";
 import { usePolling } from "@/lib/use-polling";
 
 import { ChatThread } from "../chat/ChatThread";
+import { PushToggle } from "../push/PushToggle";
 import { Skeleton } from "../ui/Skeleton";
 
 // New messages from the salon show up without reloading the page.
@@ -58,6 +59,7 @@ export function ClientMessages() {
       </Link>
       <h1 className="mt-4 mb-2 font-display text-5xl font-semibold text-ink">Съобщения</h1>
       <p className="mb-8 text-ink-soft">Пишете ни директно. Отговаря фризьорът ви или някой от екипа.</p>
+      {messages !== null && <PushToggle />}
 
       {error && (
         <p role="alert" className="mb-4 rounded-2xl bg-danger/10 px-4 py-3 text-sm text-danger">

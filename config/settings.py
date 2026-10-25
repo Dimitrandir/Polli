@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "apps.content",
     "apps.accounts",
     "apps.assistant",
+    "apps.push",
 ]
 
 MIDDLEWARE = [
@@ -182,8 +183,20 @@ BOOKING = {
     "MAX_DAYS_AHEAD": int(os.environ.get("BOOKING_MAX_DAYS_AHEAD", 60)),
     # Clients may cancel online only this many hours before the appointment.
     "CANCELLATION_HOURS": int(os.environ.get("BOOKING_CANCELLATION_HOURS", 24)),
+    # The reminder email goes this many hours before the visit (`manage.py send_booking_reminders`).
+    "REMINDER_HOURS": int(os.environ.get("BOOKING_REMINDER_HOURS", 24)),
     # Maximum number of days returned by one availability request (week view).
     "MAX_AVAILABILITY_DAYS": 14,
+}
+
+# --- Push notifications -----------------------------------------------------
+# Notifications on the phone from the browser. Keys from `python manage.py generate_vapid_keys`;
+# without them push is off. Changing the keys drops every device that subscribed with the old ones.
+PUSH = {
+    "PUBLIC_KEY": os.environ.get("VAPID_PUBLIC_KEY", ""),
+    "PRIVATE_KEY": os.environ.get("VAPID_PRIVATE_KEY", ""),
+    # Push services contact this address if something goes wrong with the notifications.
+    "CONTACT": os.environ.get("VAPID_CONTACT", "info@sisesthetics.com"),
 }
 
 # --- AI assistant ------------------------------------------------------------
