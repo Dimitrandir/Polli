@@ -33,6 +33,8 @@ export function NewBookingSheet({
   const [serviceQuery, setServiceQuery] = useState("");
   const [client, setClient] = useState<StaffClient | null>(draft.client ?? null);
   const [newClient, setNewClient] = useState<NewClient | null>(null);
+  // The client's latest services, newest first; shown at the top of the list.
+  const [recent, setRecent] = useState<number[]>([]);
   const [note, setNote] = useState("");
   const [kind, setKind] = useState<"booking" | "block">("booking");
   const [blockEnd, setBlockEnd] = useState(clockLabel(Math.min(draft.minutes + 60, 24 * 60 - 1)));
@@ -55,12 +57,29 @@ export function NewBookingSheet({
   const [h, m] = time.split(":").map(Number);
   const startMinutes = h * 60 + m;
 
+  const clientId = client?.id;
+  useEffect(() => {
+    setRecent([]);
+    if (!clientId) return;
+    let stale = false;
+    staffApi
+      .recentServices(clientId)
+      .then((rows) => !stale && setRecent(rows.map((r) => r.service)))
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
+  }, [clientId]);
+
   const matches = useMemo(() => {
     const q = serviceQuery.trim().toLowerCase();
-    return offers.filter(
-      (o) => !chosen.includes(o.id) && (!q || o.name.toLowerCase().includes(q) || o.group.toLowerCase().includes(q)),
-    );
-  }, [offers, chosen, serviceQuery]);
+    const rank = (id: number) => (recent.includes(id) ? recent.indexOf(id) : recent.length);
+    return offers
+      .filter(
+        (o) => !chosen.includes(o.id) && (!q || o.name.toLowerCase().includes(q) || o.group.toLowerCase().includes(q)),
+      )
+      .sort((a, b) => rank(a.id) - rank(b.id));
+  }, [offers, chosen, serviceQuery, recent]);
 
   function changeSpecialist(id: number) {
     setSpecialist(id);
@@ -218,6 +237,19 @@ export function NewBookingSheet({
           </>
         ) : (
           <>
+        <ClientPicker
+          client={client}
+          newClient={newClient}
+          onClient={(c) => {
+            setClient(c);
+            setNewClient(null);
+          }}
+          onNewClient={(c) => {
+            setNewClient(c);
+            setClient(null);
+          }}
+        />
+
         <div>
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Услуги</span>
           {selected.length > 0 && (
@@ -260,7 +292,14 @@ export function NewBookingSheet({
                 >
                   <span>
                     <span className="block text-sm text-neutral-900">{s.name}</span>
-                    <span className="block text-xs text-neutral-500">{s.group}</span>
+                    <span className="block text-xs text-neutral-500">
+                      {recent.includes(s.id) && (
+                        <span className="mr-1.5 rounded bg-[var(--staff)]/10 px-1.5 py-0.5 font-semibold text-[var(--staff)]">
+                          Последно
+                        </span>
+                      )}
+                      {s.group}
+                    </span>
                   </span>
                   <span className="shrink-0 text-xs text-neutral-500">
                     {formatDuration(s.duration)} · {formatPrice(s.price)}
@@ -272,18 +311,6 @@ export function NewBookingSheet({
           </ul>
         </div>
 
-        <ClientPicker
-          client={client}
-          newClient={newClient}
-          onClient={(c) => {
-            setClient(c);
-            setNewClient(null);
-          }}
-          onNewClient={(c) => {
-            setNewClient(c);
-            setClient(null);
-          }}
-        />
 
         <Field label="Вътрешна бележка">
           <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} className={inputClass} />

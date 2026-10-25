@@ -68,6 +68,11 @@ api_urlpatterns = [
     path("staff/services/", team_api.StaffServicesView.as_view(), name="staff-services"),
     path("staff/clients/", team_api.StaffClientSearchView.as_view(), name="staff-clients"),
     path("staff/clients/<int:pk>/", team_clients_api.StaffClientDetailView.as_view(), name="staff-client"),
+    path(
+        "staff/clients/<int:pk>/recent-services/",
+        team_clients_api.StaffClientRecentServicesView.as_view(),
+        name="staff-client-recent-services",
+    ),
     path("staff/clients/<int:pk>/notes/", team_clients_api.StaffClientNotesView.as_view(), name="staff-client-notes"),
     path(
         "staff/clients/<int:pk>/messages/",

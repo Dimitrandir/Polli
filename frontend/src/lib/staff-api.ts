@@ -180,6 +180,8 @@ export type NewStaffBooking = {
 
 export type ClientNote = { id: number; text: string; created_at: string; updated_at: string };
 
+export type RecentService = { service: number; last_used: string };
+
 export type ClientCard = {
   id: number;
   name: string;
@@ -241,6 +243,8 @@ export const staffApi = {
     request<TimeOff>("/staff/time-off", json("POST", block)),
   deleteTimeOff: (id: number) => request<null>(`/staff/time-off/${id}`, { method: "DELETE" }),
   client: (id: number) => request<ClientCard>(`/staff/clients/${id}`),
+  /** What the client had lately, newest first: a new booking offers these at the top. */
+  recentServices: (id: number) => request<RecentService[]>(`/staff/clients/${id}/recent-services`),
   updateClient: (id: number, changes: ClientChanges) =>
     request<ClientCard>(`/staff/clients/${id}`, json("PATCH", changes)),
   createClient: (client: NewClient) => request<StaffClient>("/staff/clients", json("POST", client)),
