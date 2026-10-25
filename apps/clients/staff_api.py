@@ -2,6 +2,7 @@
 
 from django.db.models import Count, Max, OuterRef, Q, Subquery, Sum
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -16,6 +17,7 @@ from .services import mark_read, post_message
 
 INBOX_LIMIT = 50
 CARD_BOOKINGS = 100
+RECENT_SERVICES = 5
 NO_ACCOUNT = "Клиентът няма профил на сайта, затова не може да получава съобщения. Обадете се по телефона."
 
 
@@ -127,6 +129,33 @@ class StaffClientDetailView(APIView):
             client.blocked_reason = reason
             client.save(update_fields=["blocked_reason"])
         return Response(client_card(client, request.user))
+
+
+class StaffClientRecentServicesView(APIView):
+    """The services a client had lately, newest first, so a new booking offers them at the top.
+
+    Only visits that took place count: no-shows, cancelled and future visits are left out.
+    """
+
+    permission_classes = [IsSalonStaff]
+
+    def get(self, request, pk):
+        client = get_object_or_404(Client, pk=pk)
+        items = (
+            BookingItem.objects.filter(
+                booking__client=client,
+                booking__status__in=[BookingStatus.CONFIRMED, BookingStatus.COMPLETED],
+                start_at__lte=timezone.now(),
+            )
+            .order_by("-booking__start_at", "start_at")
+            .values_list("service_id", "booking__start_at")
+        )
+        recent = {}
+        for service_id, visit in items.iterator():
+            recent.setdefault(service_id, visit)
+            if len(recent) == RECENT_SERVICES:
+                break
+        return Response([{"service": sid, "last_used": visit} for sid, visit in recent.items()])
 
 
 class StaffClientNotesView(APIView):

@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.bookings.models import Booking, BookingStatus
@@ -239,3 +240,29 @@ class StaffClientCardTests(SalonTestCase):
         card = self.api.get(reverse("api:staff-client", args=[self.client_obj.pk])).json()
         self.assertEqual(card["bookings"][0]["services"], "Боядисване на корени")
         self.assertFalse(card["has_account"])
+
+
+class StaffRecentServicesTests(SalonTestCase):
+    def setUp(self):
+        super().setUp()
+        self.api = APIClient()
+        self.api.force_authenticate(User.objects.create_user("poli", is_staff=True))
+        self.url = reverse("api:staff-client-recent-services", args=[self.client_obj.pk])
+
+    def recent(self):
+        return [row["service"] for row in self.api.get(self.url).json()]
+
+    def test_last_visit_comes_first(self):
+        past = timezone.localdate() - timedelta(days=30)
+        self.book(self.ivan, self.cut, at(past, 10))
+        self.book(self.poli, self.colour, at(past + timedelta(days=14), 10))
+        self.book(self.nadia, self.manicure, at(past + timedelta(days=20), 10), status=BookingStatus.CANCELLED)
+        self.book(self.nadia, self.manicure, at(self.day, 10))  # still ahead
+        self.assertEqual(self.recent(), [self.colour.pk, self.cut.pk])
+
+    def test_no_shows_do_not_count(self):
+        self.book(self.ivan, self.cut, at(timezone.localdate() - timedelta(days=3), 10), status=BookingStatus.NO_SHOW)
+        self.assertEqual(self.recent(), [])
+
+    def test_only_staff(self):
+        self.assertEqual(APIClient().get(self.url).status_code, 403)
