@@ -28,6 +28,7 @@ from apps.staff.models import Specialist, SpecialistService, TimeOff
 from apps.staff.roles import can_manage_specialist, is_salon_admin
 from apps.staff.schedule import aware, working_intervals
 
+from . import emails
 from .availability import BookingError, ItemRequest
 from .history import history, record, when
 from .models import OCCUPYING_STATUSES, Booking, BookingItem, BookingSource, BookingStatus, CancelledBy
@@ -560,6 +561,7 @@ class StaffBookingMoveView(APIView):
             if target != source:
                 text += f" (от {source.name} при {target.name})"
             record(booking, text, user=request.user)
+            emails.booking_moved(booking, old_start)
         return Response(_serialize(request, _bookings().get(pk=pk)))
 
 

@@ -182,6 +182,8 @@ BOOKING = {
     "MAX_DAYS_AHEAD": int(os.environ.get("BOOKING_MAX_DAYS_AHEAD", 60)),
     # Clients may cancel online only this many hours before the appointment.
     "CANCELLATION_HOURS": int(os.environ.get("BOOKING_CANCELLATION_HOURS", 24)),
+    # The reminder email goes this many hours before the visit (`manage.py send_booking_reminders`).
+    "REMINDER_HOURS": int(os.environ.get("BOOKING_REMINDER_HOURS", 24)),
     # Maximum number of days returned by one availability request (week view).
     "MAX_AVAILABILITY_DAYS": 14,
 }

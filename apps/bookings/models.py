@@ -43,6 +43,9 @@ class Booking(models.Model):
     cancelled_at = models.DateTimeField("отказана на", null=True, blank=True)
     cancelled_by = models.CharField("отказана от", max_length=20, choices=CancelledBy.choices, blank=True)
     cancellation_reason = models.CharField("причина за отказ", max_length=255, blank=True)
+    reminder_sent_at = models.DateTimeField(
+        "напомняне изпратено", null=True, blank=True, help_text="Празно = напомнянето по имейл още не е тръгнало."
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,

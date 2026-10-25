@@ -11,6 +11,7 @@ from apps.clients.services import client_for
 from apps.salon.rules import booking_rule
 from apps.staff.models import Resource, Specialist
 
+from . import emails
 from .availability import AvailabilityEngine, BookingError
 from .history import record
 from .models import Booking, BookingItem, BookingSource, BookingStatus, CancelledBy
@@ -99,6 +100,7 @@ def create_booking(
             for item in slot.items
         )
         record(booking, "Записа часа", user=staff, who=who)
+        emails.booking_created(booking, now)
     return booking
 
 
@@ -124,4 +126,5 @@ def cancel_booking(booking, *, by=CancelledBy.CLIENT, reason="", now=None, user=
     booking.save(update_fields=["status", "cancelled_at", "cancelled_by", "cancellation_reason", "updated_at"])
     who = None if user is not None else ("клиентът" if by == CancelledBy.CLIENT else "салонът")
     record(booking, f"Отказа часа: {reason}" if reason else "Отказа часа", user=user, who=who)
+    emails.booking_cancelled(booking)
     return booking

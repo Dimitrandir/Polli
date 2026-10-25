@@ -207,7 +207,35 @@ def post_message(client, text, *, sender=None, from_client=False):
             recipient_list=[client.email],
             fail_silently=True,
         )
+    if from_client:
+        notify_salon(message)
     return message
+
+
+def notify_salon(message):
+    """Tell the salon a client wrote, at the salon's email from the settings page.
+
+    One email until the salon opens the conversation: further messages before that add nothing new to do.
+    """
+    from apps.salon.models import SalonInfo
+
+    unread_before = message.client.messages.filter(from_client=True, read_at__isnull=True).exclude(pk=message.pk)
+    if unread_before.exists():
+        return
+    salon = SalonInfo.load()
+    if salon is None or not salon.email:
+        return
+    client = message.client
+    send_mail(
+        subject=f"Ново съобщение от {client.full_name}",
+        message=(
+            f"{client.full_name} ({client.phone}) писа:\n\n{message.text}\n\n"
+            f"Отговорете от календара: {settings.FRONTEND_URL}/personal/saobshtenia"
+        ),
+        from_email=None,
+        recipient_list=[salon.email],
+        fail_silently=True,
+    )
 
 
 def mark_read(client, *, by_client, now=None):

@@ -12,6 +12,7 @@ from django.utils.html import format_html
 from apps.staff.models import Specialist, SpecialistService, TimeOff
 from apps.staff.schedule import aware, working_intervals
 
+from . import emails
 from .availability import BookingError
 from .history import record
 from .models import OCCUPYING_STATUSES, Booking, BookingEvent, BookingItem, BookingSource, BookingStatus, CancelledBy
@@ -133,6 +134,7 @@ class BookingAdmin(admin.ModelAdmin):
         form.instance.refresh_time_range()
         if not change:
             record(form.instance, "Записа часа от админ панела", user=request.user)
+            emails.booking_created(form.instance)
         elif form.has_changed() or any(f.has_changed() for f in formsets):
             record(form.instance, "Промени часа от админ панела", user=request.user)
 
