@@ -19,6 +19,7 @@ export function SettingsPage() {
   const [saved, setSaved] = useState<SalonSettings | null>(null);
   const [rules, setRules] = useState({ max_days_ahead: 0, min_notice_minutes: 0, cancellation_hours: 0 });
   const [hours, setHours] = useState<Hours[]>([]);
+  const [hidePhones, setHidePhones] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export function SettingsPage() {
       cancellation_hours: data.cancellation_hours,
     });
     setHours(data.opening_hours);
+    setHidePhones(data.hide_client_phones);
   }
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export function SettingsPage() {
     setError(null);
     setNotice(null);
     try {
-      apply(await staffApi.updateSettings({ ...rules, opening_hours: hours }));
+      apply(await staffApi.updateSettings({ ...rules, hide_client_phones: hidePhones, opening_hours: hours }));
       setNotice("Настройките са запазени.");
     } catch (e) {
       setError(errorText(e));
@@ -114,6 +116,26 @@ export function SettingsPage() {
             <p className="text-xs text-neutral-500">
               Салонът може да записва без тези ограничения от календара.
             </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-base font-bold">Телефони на клиентите</h2>
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                disabled={readOnly}
+                checked={hidePhones}
+                onChange={(e) => setHidePhones(e.target.checked)}
+                className="mt-0.5 h-5 w-5 accent-[var(--staff)]"
+              />
+              <span>
+                Скрий телефоните на клиентите от служителите
+                <span className="block text-xs text-neutral-500">
+                  Само администраторите ще виждат телефоните в календара и в картите на клиентите. Служителите
+                  намират клиент по телефон само ако напишат целия номер.
+                </span>
+              </span>
+            </label>
           </section>
 
           <section className="space-y-3">

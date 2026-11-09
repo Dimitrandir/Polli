@@ -21,6 +21,7 @@ def settings_payload():
         "max_days_ahead": booking_rule("MAX_DAYS_AHEAD"),
         "min_notice_minutes": booking_rule("MIN_NOTICE_MINUTES"),
         "cancellation_hours": booking_rule("CANCELLATION_HOURS"),
+        "hide_client_phones": bool(salon and salon.hide_client_phones),
         "defaults": {field: settings.BOOKING[key] for key, field in RULE_FIELDS.items()},
         "opening_hours": [
             {"weekday": h.weekday, "start": f"{h.start_time:%H:%M}", "end": f"{h.end_time:%H:%M}"}
@@ -44,6 +45,7 @@ class SettingsSerializer(serializers.Serializer):
     max_days_ahead = serializers.IntegerField(min_value=1, max_value=365, required=False)
     min_notice_minutes = serializers.IntegerField(min_value=0, max_value=7 * 24 * 60, required=False)
     cancellation_hours = serializers.IntegerField(min_value=0, max_value=14 * 24, required=False)
+    hide_client_phones = serializers.BooleanField(required=False)
     opening_hours = HoursSerializer(many=True, required=False)
 
 
@@ -62,6 +64,8 @@ class SalonSettingsView(APIView):
             for field in RULE_FIELDS.values():
                 if field in v:
                     setattr(salon, field, v[field])
+            if "hide_client_phones" in v:
+                salon.hide_client_phones = v["hide_client_phones"]
             salon.save()
             if "opening_hours" in v:
                 salon.opening_hours.all().delete()

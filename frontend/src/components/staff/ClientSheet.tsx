@@ -161,12 +161,14 @@ function CardTab({
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
-        <a
-          href={`tel:${card.phone}`}
-          className="inline-flex items-center gap-2 rounded-full bg-[var(--staff)] px-4 py-2 text-sm font-semibold text-white"
-        >
-          <Phone size={16} /> {card.phone}
-        </a>
+        {card.phone && (
+          <a
+            href={`tel:${card.phone}`}
+            className="inline-flex items-center gap-2 rounded-full bg-[var(--staff)] px-4 py-2 text-sm font-semibold text-white"
+          >
+            <Phone size={16} /> {card.phone}
+          </a>
+        )}
         <button
           onClick={() => router.push(`/personal?klient=${card.id}`)}
           className="inline-flex items-center gap-2 rounded-full border border-[var(--staff)] px-4 py-2 text-sm font-semibold text-[var(--staff)]"
@@ -386,7 +388,9 @@ function ContactsForm({
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        onSave(form);
+        // A hidden phone comes as "": leave it out so it is not changed.
+        const { phone, ...rest } = form;
+        onSave(card.phone_hidden ? rest : { ...rest, phone });
       }}
       className="space-y-3 rounded-xl border border-neutral-200 p-3"
     >
@@ -397,9 +401,11 @@ function ContactsForm({
         <Field label="Фамилия">
           <input value={form.last_name} onChange={set("last_name")} className={inputClass} />
         </Field>
-        <Field label="Телефон">
-          <input required type="tel" value={form.phone} onChange={set("phone")} className={inputClass} />
-        </Field>
+        {!card.phone_hidden && (
+          <Field label="Телефон">
+            <input required type="tel" value={form.phone} onChange={set("phone")} className={inputClass} />
+          </Field>
+        )}
         <Field label="Имейл">
           <input type="email" value={form.email} onChange={set("email")} className={inputClass} />
         </Field>

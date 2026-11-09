@@ -8,7 +8,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.bookings.models import BookingItem, BookingStatus
-from apps.bookings.staff_api import IsSalonStaff
+from apps.bookings.staff_api import IsSalonStaff, hide_phone
+from apps.staff.roles import can_see_client_phones
 
 from .api import MESSAGE_MAX_LENGTH, MessageSerializer, NewMessageSerializer, conversation
 from .models import Client, ClientNote, Message
@@ -66,7 +67,7 @@ def client_card(client, user):
     spent = BookingItem.objects.filter(booking__client=client, booking__status=BookingStatus.COMPLETED).aggregate(
         total=Sum("price")
     )["total"]
-    return {
+    card = {
         "id": client.pk,
         "name": client.full_name,
         "first_name": client.first_name,
@@ -95,6 +96,7 @@ def client_card(client, user):
         ],
         "unread_messages": client.messages.filter(from_client=True, read_at__isnull=True).count(),
     }
+    return hide_phone(card, user)
 
 
 class StaffClientDetailView(APIView):
@@ -111,6 +113,11 @@ class StaffClientDetailView(APIView):
         data = ClientUpdateSerializer(data=request.data)
         data.is_valid(raise_exception=True)
         v = data.validated_data
+        if "phone" in v and not can_see_client_phones(request.user):
+            return Response(
+                {"detail": "Само администратор може да променя телефона на клиента."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         if "phone" in v and Client.objects.filter(phone=v["phone"]).exclude(pk=client.pk).exists():
             return Response(
                 {"detail": "Друг клиент вече е с този телефон. Потърсете го в клиентите."},
@@ -229,9 +236,12 @@ class StaffInboxView(APIView):
             .filter(last_message_at__isnull=False)
             .order_by("-last_message_at")[:INBOX_LIMIT]
         )
+        phones = can_see_client_phones(request.user)
         conversations = [
             {
-                "client": {"id": c.pk, "name": c.full_name, "nickname": c.nickname, "phone": c.phone},
+                "client": hide_phone(
+                    {"id": c.pk, "name": c.full_name, "nickname": c.nickname, "phone": c.phone}, visible=phones
+                ),
                 "last_message": {
                     "text": c.last_text,
                     "from_client": c.last_from_client,

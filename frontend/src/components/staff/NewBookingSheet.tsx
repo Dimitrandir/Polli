@@ -371,7 +371,7 @@ function ClientPicker({
             <span className="block text-sm font-medium text-neutral-900">
               {client.name} {client.is_blocked && "⛔"}
             </span>
-            <span className="block text-xs text-neutral-500">{client.phone}</span>
+            <span className="block text-xs text-neutral-500">{client.phone || client.email}</span>
           </span>
           <button aria-label="Смени клиента" onClick={() => onClient(null)} className="p-1 text-neutral-500">
             <X size={16} />
@@ -432,7 +432,7 @@ function ClientPicker({
                   {c.nickname && <span className="text-neutral-500">{c.nickname} → </span>}
                   {c.name} {c.is_blocked && "⛔"}
                 </span>
-                <span className="block text-xs text-neutral-500">{c.phone}</span>
+                <span className="block text-xs text-neutral-500">{c.phone || c.email}</span>
               </button>
             </li>
           ))}

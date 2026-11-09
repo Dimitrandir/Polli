@@ -91,15 +91,17 @@ export function ClientsPage() {
                   {c.name} {c.is_blocked && "⛔"}
                   {c.nickname && <span className="font-normal text-neutral-500"> „{c.nickname}“</span>}
                 </span>
-                <span className="block text-sm text-neutral-500">{c.phone}</span>
+                <span className="block text-sm text-neutral-500">{c.phone || c.email}</span>
               </button>
-              <a
-                href={`tel:${c.phone}`}
-                aria-label={`Обади се на ${c.name}`}
-                className="rounded-full bg-[var(--staff)] p-2.5 text-white"
-              >
-                <Phone size={18} />
-              </a>
+              {c.phone && (
+                <a
+                  href={`tel:${c.phone}`}
+                  aria-label={`Обади се на ${c.name}`}
+                  className="rounded-full bg-[var(--staff)] p-2.5 text-white"
+                >
+                  <Phone size={18} />
+                </a>
+              )}
             </li>
           ))}
         </ul>

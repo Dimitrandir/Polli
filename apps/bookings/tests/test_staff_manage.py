@@ -315,3 +315,71 @@ class ClientEditTests(ManageTestCase):
             reverse("api:staff-clients"), {"first_name": "Друга", "phone": "0877123456"}, format="json"
         )
         self.assertEqual(response.status_code, 400)
+
+
+class HiddenPhonesTests(ManageTestCase):
+    """The administrator can hide clients' phones from the rest of the team (in the API, not only on screen)."""
+
+    def hide_phones(self, value=True):
+        self.as_admin()
+        response = self.api.patch(reverse("api:staff-settings"), {"hide_client_phones": value}, format="json")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["hide_client_phones"], value)
+
+    def test_only_an_administrator_changes_it(self):
+        self.as_ivan()
+        self.assertFalse(self.api.get(reverse("api:staff-settings")).json()["hide_client_phones"])
+        response = self.api.patch(reverse("api:staff-settings"), {"hide_client_phones": True}, format="json")
+        self.assertEqual(response.status_code, 403)
+
+    def test_phones_are_visible_by_default(self):
+        self.book(self.poli, self.cut, at(self.day, 10))
+        self.as_ivan()
+        day = self.api.get(reverse("api:staff-day"), {"date": self.day.isoformat()}).json()
+        self.assertEqual(day["bookings"][0]["client"]["phone"], "+359888123456")
+        self.assertTrue(self.api.get(reverse("api:staff-session")).json()["user"]["can_see_phones"])
+
+    def test_hidden_from_the_team_everywhere(self):
+        booking = self.book(self.poli, self.cut, at(self.day, 10))
+        self.hide_phones()
+        self.as_ivan()
+        self.assertFalse(self.api.get(reverse("api:staff-session")).json()["user"]["can_see_phones"])
+
+        day = self.api.get(reverse("api:staff-day"), {"date": self.day.isoformat()}).json()
+        client = day["bookings"][0]["client"]
+        self.assertEqual((client["phone"], client["phone_hidden"]), ("", True))
+        week = self.api.get(reverse("api:staff-week"), {"date": self.day.isoformat(), "specialist": self.poli.pk})
+        self.assertEqual(week.json()["bookings"][0]["client"]["phone"], "")
+        detail = self.api.get(reverse("api:staff-booking-detail", args=[booking.pk])).json()
+        self.assertEqual(detail["client"]["phone"], "")
+        card = self.api.get(reverse("api:staff-client", args=[self.client_obj.pk])).json()
+        self.assertEqual((card["phone"], card["phone_hidden"]), ("", True))
+        for found in self.api.get(reverse("api:staff-clients"), {"q": "Мария"}).json():
+            self.assertEqual(found["phone"], "")
+        for found in self.api.get(reverse("api:staff-clients")).json():
+            self.assertEqual(found["phone"], "")
+        self.assertNotIn(b"888123456", self.api.get(reverse("api:staff-day"), {"date": self.day.isoformat()}).content)
+
+    def test_part_of_a_number_finds_nobody_but_the_whole_number_does(self):
+        self.hide_phones()
+        self.as_ivan()
+        url = reverse("api:staff-clients")
+        self.assertEqual(self.api.get(url, {"q": "0888 12"}).json(), [])
+        found = self.api.get(url, {"q": "0888 123 456"}).json()
+        self.assertEqual([c["id"] for c in found], [self.client_obj.pk])
+        self.assertEqual(found[0]["phone"], "")
+
+    def test_team_member_cannot_change_a_hidden_phone(self):
+        self.hide_phones()
+        self.as_ivan()
+        url = reverse("api:staff-client", args=[self.client_obj.pk])
+        self.assertEqual(self.api.patch(url, {"phone": "0899 000 111"}, format="json").status_code, 403)
+        self.assertEqual(self.api.patch(url, {"nickname": "Мими"}, format="json").status_code, 200)
+
+    def test_the_administrator_still_sees_them(self):
+        self.book(self.poli, self.cut, at(self.day, 10))
+        self.hide_phones()  # still logged in as the administrator
+        day = self.api.get(reverse("api:staff-day"), {"date": self.day.isoformat()}).json()
+        self.assertEqual(day["bookings"][0]["client"]["phone"], "+359888123456")
+        card = self.api.get(reverse("api:staff-client", args=[self.client_obj.pk])).json()
+        self.assertEqual((card["phone"], card["phone_hidden"]), ("+359888123456", False))
