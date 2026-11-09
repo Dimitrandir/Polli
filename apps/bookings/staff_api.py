@@ -347,6 +347,9 @@ class StaffClientSearchView(APIView):
         return Response(StaffClientSerializer(client).data, status=status.HTTP_201_CREATED)
 
 
+MIN_ITEM_MINUTES = 5
+
+
 class NewClientSerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=100)
     last_name = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
@@ -362,11 +365,59 @@ class StaffBookingCreateSerializer(serializers.Serializer):
     start = serializers.DateTimeField()
     note = serializers.CharField(required=False, allow_blank=True, default="", max_length=1000)
     internal_note = serializers.CharField(required=False, allow_blank=True, default="", max_length=1000)
+    duration_minutes = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=MIN_ITEM_MINUTES,
+        max_value=12 * 60,
+        help_text="Колко да трае целият час, ако е различно от обичайното за услугите.",
+    )
 
     def validate(self, data):
         if not data.get("client") and not data.get("new_client"):
             raise serializers.ValidationError("Изберете клиент или въведете нов.")
+        total = data.get("duration_minutes")
+        if total is not None and total < MIN_ITEM_MINUTES * len(data["services"]):
+            raise serializers.ValidationError("Часът е твърде кратък за избраните услуги.")
         return data
+
+
+def split_duration(total, usual):
+    """Fit the services of a visit into `total` minutes.
+
+    The last service takes any extra time; a shorter visit trims from the last service backwards,
+    leaving each at least MIN_ITEM_MINUTES.
+    """
+    durations = list(usual)
+    extra = total - sum(durations)
+    if extra > 0:
+        durations[-1] += extra
+    for i in reversed(range(len(durations))):
+        if extra >= 0:
+            break
+        cut = min(-extra, durations[i] - MIN_ITEM_MINUTES)
+        durations[i] -= cut
+        extra += cut
+    return durations
+
+
+def _item_requests(v):
+    specialist, services = v["specialist"], v["services"]
+    total = v.get("duration_minutes")
+    usual = {
+        ss.service_id: ss.duration_minutes
+        for ss in SpecialistService.objects.filter(specialist=specialist, service__in=services).select_related(
+            "service"
+        )
+    }
+    if total is None or any(s.pk not in usual for s in services):
+        # Without an offer the engine explains that the specialist does not do the service.
+        return [ItemRequest(service=s, specialist=specialist) for s in services]
+    durations = split_duration(total, [usual[s.pk] for s in services])
+    return [
+        ItemRequest(service=s, specialist=specialist, duration_minutes=d)
+        for s, d in zip(services, durations, strict=True)
+    ]
 
 
 def _client_for(data):
@@ -400,7 +451,7 @@ class StaffBookingCreateView(APIView):
             client = _client_for(v)
             booking = create_booking(
                 client=client,
-                requests=[ItemRequest(service=s, specialist=v["specialist"]) for s in v["services"]],
+                requests=_item_requests(v),
                 start=v["start"],
                 note=v["note"],
                 source=BookingSource.SALON,

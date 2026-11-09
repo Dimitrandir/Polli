@@ -1,6 +1,6 @@
 "use client";
 
-import { LoaderCircle, Search, UserPlus, X } from "lucide-react";
+import { LoaderCircle, Minus, Plus, Search, UserPlus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { ApiError } from "@/lib/api";
@@ -11,6 +11,11 @@ import { staffApi, type StaffSpecialist, type NewClient, type StaffClient, type 
 import { Field, inputClass, Sheet } from "./Sheet";
 
 export type NewBookingDraft = { date: string; specialist: number; minutes: number; client?: StaffClient | null };
+
+/** Quick choices for how long the visit takes, in minutes. */
+export const DURATION_CHOICES = [30, 45, 60, 90, 120, 150, 180];
+const DURATION_STEP = 15;
+const MAX_DURATION = 12 * 60;
 
 const EMPTY_CLIENT: NewClient = { first_name: "", last_name: "", phone: "", email: "" };
 
@@ -36,6 +41,8 @@ export function NewBookingSheet({
   // The client's latest services, newest first; shown at the top of the list.
   const [recent, setRecent] = useState<number[]>([]);
   const [note, setNote] = useState("");
+  // How long the whole visit takes when staff set it themselves; null = the services' usual time.
+  const [customDuration, setCustomDuration] = useState<number | null>(null);
   const [kind, setKind] = useState<"booking" | "block">("booking");
   const [blockEnd, setBlockEnd] = useState(clockLabel(Math.min(draft.minutes + 60, 24 * 60 - 1)));
   const [reason, setReason] = useState("");
@@ -53,7 +60,12 @@ export function NewBookingSheet({
   );
   const selected = chosen.flatMap((id) => offers.filter((o) => o.id === id));
   const total = selected.reduce((sum, s) => sum + Number(s.price), 0);
-  const duration = selected.reduce((sum, s) => sum + s.duration, 0);
+  const usualDuration = selected.reduce((sum, s) => sum + s.duration, 0);
+  const duration = customDuration ?? usualDuration;
+  const changeDuration = (minutes: number) => {
+    const next = Math.min(Math.max(minutes, 5 * Math.max(selected.length, 1)), MAX_DURATION);
+    setCustomDuration(next === usualDuration ? null : next);
+  };
   const [h, m] = time.split(":").map(Number);
   const startMinutes = h * 60 + m;
 
@@ -123,6 +135,7 @@ export function NewBookingSheet({
         specialist,
         services: selected.map((s) => s.id),
         start: salonDateTime(draft.date, startMinutes),
+        ...(customDuration !== null && { duration_minutes: customDuration }),
         internal_note: note,
       });
       onCreated();
@@ -311,6 +324,14 @@ export function NewBookingSheet({
           </ul>
         </div>
 
+        {selected.length > 0 && (
+          <DurationPicker
+            value={duration}
+            usual={usualDuration}
+            min={5 * selected.length}
+            onChange={changeDuration}
+          />
+        )}
 
         <Field label="Вътрешна бележка">
           <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} className={inputClass} />
@@ -326,6 +347,65 @@ export function NewBookingSheet({
         )}
       </div>
     </Sheet>
+  );
+}
+
+function DurationPicker({
+  value,
+  usual,
+  min,
+  onChange,
+}: {
+  value: number;
+  usual: number;
+  min: number;
+  onChange: (minutes: number) => void;
+}) {
+  const chip = (active: boolean) =>
+    `rounded-full border px-3 py-1.5 text-sm ${
+      active
+        ? "border-[var(--staff)] bg-[var(--staff)] font-semibold text-white"
+        : "border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+    }`;
+  return (
+    <div role="group" aria-label="Продължителност">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Продължителност</span>
+        {value !== usual && (
+          <button onClick={() => onChange(usual)} className="text-sm text-[var(--staff)]">
+            Обичайно: {formatDuration(usual)}
+          </button>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          aria-label="15 минути по-малко"
+          disabled={value - DURATION_STEP < min}
+          onClick={() => onChange(value - DURATION_STEP)}
+          className="rounded-full border border-neutral-300 p-2 text-neutral-700 disabled:opacity-40"
+        >
+          <Minus size={16} />
+        </button>
+        <span aria-live="polite" className="min-w-24 text-center font-semibold text-neutral-900">
+          {formatDuration(value)}
+        </span>
+        <button
+          aria-label="15 минути повече"
+          disabled={value + DURATION_STEP > MAX_DURATION}
+          onClick={() => onChange(value + DURATION_STEP)}
+          className="rounded-full border border-neutral-300 p-2 text-neutral-700 disabled:opacity-40"
+        >
+          <Plus size={16} />
+        </button>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {DURATION_CHOICES.filter((m) => m >= min).map((m) => (
+          <button key={m} aria-pressed={value === m} onClick={() => onChange(m)} className={chip(value === m)}>
+            {formatDuration(m)}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

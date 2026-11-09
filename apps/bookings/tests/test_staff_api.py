@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -169,6 +170,72 @@ class StaffBookingTests(StaffApiTestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("не е свободен", response.json()["detail"])
+
+    def test_create_with_longer_duration(self):
+        self.login()
+        payload = {
+            "client": self.client_obj.pk,
+            "specialist": self.poli.pk,
+            "services": [self.cut.pk],
+            "start": at(self.day, 10).isoformat(),
+            "duration_minutes": 60,
+        }
+        response = self.api.post(reverse("api:staff-booking-create"), payload, format="json")
+        self.assertEqual(response.status_code, 201, response.content)
+        booking = Booking.objects.get(pk=response.json()["id"])
+        self.assertEqual(booking.end_at, at(self.day, 11))  # 1 h instead of the usual 45 min
+        item = booking.items.get()
+        self.assertEqual(item.duration_minutes, 60)
+        self.assertEqual(item.price, Decimal("30.00"))  # the price does not change
+
+        # The longer visit (plus the 15-minute buffer) occupies the calendar until 11:15.
+        payload["start"] = at(self.day, 11, 10).isoformat()
+        payload["duration_minutes"] = None
+        response = self.api.post(reverse("api:staff-booking-create"), payload, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("не е свободен", response.json()["detail"])
+
+    def test_create_with_duration_spread_over_services(self):
+        self.login()
+        response = self.api.post(
+            reverse("api:staff-booking-create"),
+            {
+                "client": self.client_obj.pk,
+                "specialist": self.poli.pk,
+                "services": [self.cut.pk, self.colour.pk],
+                "start": at(self.day, 10).isoformat(),
+                "duration_minutes": 180,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        booking = Booking.objects.get(pk=response.json()["id"])
+        self.assertEqual(booking.end_at, at(self.day, 13))
+        self.assertEqual([i.duration_minutes for i in booking.items.order_by("start_at")], [45, 135])
+
+    def test_split_duration(self):
+        from apps.bookings.staff_api import split_duration
+
+        self.assertEqual(split_duration(60, [30]), [60])
+        self.assertEqual(split_duration(20, [30]), [20])
+        self.assertEqual(split_duration(180, [45, 90]), [45, 135])
+        self.assertEqual(split_duration(60, [45, 90]), [45, 15])
+        self.assertEqual(split_duration(20, [45, 90]), [15, 5])
+
+    def test_create_rejects_too_short_duration(self):
+        self.login()
+        response = self.api.post(
+            reverse("api:staff-booking-create"),
+            {
+                "client": self.client_obj.pk,
+                "specialist": self.poli.pk,
+                "services": [self.cut.pk, self.colour.pk],
+                "start": at(self.day, 10).isoformat(),
+                "duration_minutes": 5,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_create_requires_a_client(self):
         self.login()

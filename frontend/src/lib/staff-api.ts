@@ -175,6 +175,8 @@ export type NewStaffBooking = {
   services: number[];
   /** Salon time without an offset, e.g. "2026-10-19T10:15:00". */
   start: string;
+  /** How long the whole visit takes, when it differs from the services' usual time. */
+  duration_minutes?: number;
   internal_note: string;
 };
 
