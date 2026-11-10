@@ -91,6 +91,14 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+# The Docker image (Dockerfile) adds WhiteNoise so the admin's CSS works without a separate web server.
+try:
+    import whitenoise  # noqa: F401
+except ImportError:
+    pass
+else:
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -122,6 +130,8 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # Uploaded files such as specialists' photos.
 MEDIA_URL = "media/"
 MEDIA_ROOT = Path(os.environ.get("DJANGO_MEDIA_ROOT", BASE_DIR / "media"))
+# Django serves uploaded files itself (fine for a small salon server without nginx). Empty = only with DEBUG on.
+SERVE_MEDIA = env_bool("DJANGO_SERVE_MEDIA", DEBUG)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

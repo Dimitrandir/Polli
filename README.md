@@ -199,6 +199,9 @@ python manage.py createsuperuser
 python manage.py runserver           # админ: http://localhost:8000/admin/
 ```
 
+Целият сайт на постоянно включен компютър (Windows, Linux) с Docker и Cloudflare тунел:
+`docker compose -f docker-compose.server.yml up -d --build`, стъпка по стъпка в [docs/windows-server.md](docs/windows-server.md).
+
 Тестове и проверки: `python manage.py test`, `ruff check . && ruff format --check .`
 
 От телефон или друг компютър в същата мрежа сайтът се отваря на `http://<IP на компютъра>:3000`. При

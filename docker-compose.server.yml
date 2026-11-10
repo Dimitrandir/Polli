@@ -1,0 +1,76 @@
+# The whole site on one always-on computer (Windows with Docker Desktop, Linux, Mac):
+#   docker compose -f docker-compose.server.yml up -d --build
+# Settings come from .env (copy .env.example). The public link of the tunnel:
+#   docker compose -f docker-compose.server.yml logs tunnel
+# Step by step (in Bulgarian): docs/windows-server.md
+
+x-backend: &backend
+  build: .
+  env_file: .env
+  environment:
+    POSTGRES_HOST: db
+    POSTGRES_PORT: "5432"
+    # Never DEBUG on a computer that is reachable from the internet.
+    DJANGO_DEBUG: "false"
+    DJANGO_SERVE_MEDIA: "true"
+    DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,backend"
+    DJANGO_CSRF_TRUSTED_ORIGINS: "http://localhost:3000,https://*.trycloudflare.com,${SITE_URL:-http://localhost:3000}"
+    FRONTEND_URL: "${SITE_URL:-http://localhost:3000}"
+  volumes:
+    - media:/data/media
+  restart: unless-stopped
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sis}
+      POSTGRES_USER: ${POSTGRES_USER:-sis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sis}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # API and admin. The admin opens only on this computer: http://localhost:8000/admin/
+  backend:
+    <<: *backend
+    command: sh -c "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  # Reminder emails every 10 minutes (instead of cron).
+  reminders:
+    <<: *backend
+    command: sh -c "sleep 60; while true; do python manage.py send_booking_reminders; sleep 600; done"
+
+  # The website: http://localhost:3000 on this computer.
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  # Cloudflare Tunnel: a public https address without opening ports on the router.
+  # By default a quick tunnel: a random https://….trycloudflare.com link that changes on every restart.
+  # Fixed address on your own domain: in .env set
+  #   TUNNEL_ARGS=tunnel --no-autoupdate run --token <token from Cloudflare Zero Trust>
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: ${TUNNEL_ARGS:-tunnel --no-autoupdate --url http://frontend:3000}
+    restart: unless-stopped
+    depends_on:
+      - frontend
+
+volumes:
+  pgdata:
+  media:
