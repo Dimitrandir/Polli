@@ -241,4 +241,54 @@ describe("DayCalendar", () => {
     await user.click(await screen.findByText("ср 21"));
     expect(screen.getByText("21 ОКТ")).toBeInTheDocument();
   });
+
+  it("lights the today button only when another day is on screen", async () => {
+    const user = userEvent.setup();
+    render(<DayCalendar initialDate={DAY} />);
+    await screen.findByText("Димка Тошева");
+    const today = screen.getByRole("button", { name: "Днес" });
+    expect(today).toHaveAttribute("data-lit", "true");
+    await user.click(today);
+    expect(screen.getByRole("button", { name: "Днес" })).toHaveAttribute("data-lit", "false");
+  });
+
+  it("hides and shows a colleague's column from the avatars in the top bar", async () => {
+    window.localStorage.clear();
+    const user = userEvent.setup();
+    render(<DayCalendar initialDate={DAY} />);
+    await screen.findByText("Димка Тошева");
+    const fani = screen.getByRole("button", { name: "Служител: Фани Георгиева" });
+    expect(fani).toHaveTextContent("ФГ");
+
+    await user.click(fani);
+    expect(screen.queryByText("Почивка")).not.toBeInTheDocument();
+    expect(fani).toHaveAttribute("aria-pressed", "false");
+    expect(JSON.parse(window.localStorage.getItem("staff.hiddenColumns")!)).toEqual([2]);
+
+    // The last column stays.
+    await user.click(screen.getByRole("button", { name: "Служител: Невена Иванова" }));
+    expect(screen.getByText("Димка Тошева")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Покажи всички служители" }));
+    expect(screen.getByText("Почивка")).toBeInTheDocument();
+    window.localStorage.clear();
+  });
+
+  it("opens the month in a side panel from the calendar at the top left", async () => {
+    window.localStorage.clear();
+    const user = userEvent.setup();
+    render(<DayCalendar initialDate={DAY} />);
+    await screen.findByText("Димка Тошева");
+    await user.click(screen.getByRole("button", { name: "Покажи календара" }));
+    const side = screen.getByRole("complementary", { name: "Календар по месеци" });
+    expect(within(side).getByText("октомври 2026")).toBeInTheDocument();
+
+    await user.click(within(side).getByRole("button", { name: "2026-10-22" }));
+    expect(screen.getByText("22 ОКТ")).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Календар по месеци" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Скрий календара" }));
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+    window.localStorage.clear();
+  });
 });
