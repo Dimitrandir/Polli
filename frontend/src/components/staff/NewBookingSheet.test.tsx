@@ -90,4 +90,25 @@ describe("NewBookingSheet", () => {
     await vi.waitFor(() => expect(createBooking).toHaveBeenCalled());
     expect(createBooking.mock.calls[0][0]).not.toHaveProperty("duration_minutes");
   });
+
+  it("says right above Запази what is missing for a new client with only a name", () => {
+    recentServices.mockResolvedValue([]);
+    createBooking.mockClear();
+    open(null);
+    fireEvent.change(screen.getByPlaceholderText("Име или телефон…"), { target: { value: "Мария" } });
+    fireEvent.click(screen.getByText("Нов клиент"));
+    expect(screen.getByLabelText("Име")).toHaveProperty("value", "Мария");
+    fireEvent.click(screen.getByText("Подстригване"));
+    fireEvent.click(screen.getByText("Запази"));
+
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toBe("Не мога да запазя: липсва телефон на новия клиент.");
+    // The message sits in the footer, next to the button, not at the bottom of the form.
+    expect(alert.nextElementSibling?.contains(screen.getByText("Запази"))).toBe(true);
+    expect(screen.getByLabelText("Телефон").getAttribute("aria-invalid")).toBe("true");
+    expect(createBooking).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Телефон"), { target: { value: "0888 123 456" } });
+    expect(screen.getByLabelText("Телефон").getAttribute("aria-invalid")).toBe("false");
+  });
 });

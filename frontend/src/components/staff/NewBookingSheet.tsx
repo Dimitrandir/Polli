@@ -19,6 +19,11 @@ const MAX_DURATION = 12 * 60;
 
 const EMPTY_CLIENT: NewClient = { first_name: "", last_name: "", phone: "", email: "" };
 
+/** What is still missing before the booking can be saved; shown next to the field and above "Запази". */
+type Missing = "services" | "client" | "first_name" | "phone";
+
+const invalidClass = "border-red-500 ring-2 ring-red-500/30";
+
 export function NewBookingSheet({
   draft,
   specialists,
@@ -48,6 +53,7 @@ export function NewBookingSheet({
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [missing, setMissing] = useState<Missing[]>([]);
 
   // Services this specialist does, with their own price and duration.
   const offers = useMemo(
@@ -96,7 +102,9 @@ export function NewBookingSheet({
   function changeSpecialist(id: number) {
     setSpecialist(id);
     // Keep only the services the new specialist also does.
-    setChosen((ids) => ids.filter((sid) => services.some((s) => s.id === sid && s.specialists.some((o) => o.id === id))));
+    setChosen((ids) =>
+      ids.filter((sid) => services.some((s) => s.id === sid && s.specialists.some((o) => o.id === id))),
+    );
   }
 
   async function saveBlock() {
@@ -124,9 +132,20 @@ export function NewBookingSheet({
   async function save() {
     if (kind === "block") return saveBlock();
     setError(null);
-    if (!selected.length) return setError("Изберете поне една услуга.");
-    if (!client && !(newClient && newClient.first_name.trim() && newClient.phone.trim())) {
-      return setError("Изберете клиент или въведете име и телефон на нов.");
+    const lacking: Missing[] = [];
+    if (!client && !newClient) lacking.push("client");
+    if (!client && newClient && !newClient.first_name.trim()) lacking.push("first_name");
+    if (!client && newClient && !newClient.phone.trim()) lacking.push("phone");
+    if (!selected.length) lacking.push("services");
+    setMissing(lacking);
+    if (lacking.length) {
+      const words = {
+        client: "клиент",
+        first_name: "име на клиента",
+        phone: "телефон на новия клиент",
+        services: "поне една услуга",
+      };
+      return setError(`Не мога да запазя: липсва ${lacking.map((f) => words[f]).join(", ")}.`);
     }
     setSaving(true);
     try {
@@ -152,28 +171,35 @@ export function NewBookingSheet({
       title={kind === "block" ? "Блокирай време" : "Нов час"}
       onClose={onClose}
       footer={
-        <div className="flex items-center gap-3">
-          <div className="flex-1 text-sm text-neutral-600">
-            {kind === "block" ? (
-              `${time} – ${blockEnd}`
-            ) : selected.length ? (
-              <>
-                {time} – {clockLabel(Math.min(startMinutes + duration, 24 * 60 - 1))} · {formatDuration(duration)} ·{" "}
-                <span className="font-semibold text-neutral-900">{formatPrice(total)}</span>
-              </>
-            ) : (
-              formatLongDate(draft.date)
-            )}
+        <>
+          {error && (
+            <p role="alert" className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+              {error}
+            </p>
+          )}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 text-sm text-neutral-600">
+              {kind === "block" ? (
+                `${time} – ${blockEnd}`
+              ) : selected.length ? (
+                <>
+                  {time} – {clockLabel(Math.min(startMinutes + duration, 24 * 60 - 1))} · {formatDuration(duration)} ·{" "}
+                  <span className="font-semibold text-neutral-900">{formatPrice(total)}</span>
+                </>
+              ) : (
+                formatLongDate(draft.date)
+              )}
+            </div>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="inline-flex touch-manipulation items-center gap-2 rounded-xl bg-[var(--staff)] px-6 py-3 font-semibold text-white shadow-md transition duration-100 select-none hover:brightness-110 active:translate-y-0.5 active:scale-95 active:shadow-none active:brightness-90 disabled:cursor-wait disabled:opacity-70"
+            >
+              {saving && <LoaderCircle size={18} className="animate-spin" />}
+              {saving ? "Запазвам…" : "Запази"}
+            </button>
           </div>
-          <button
-            onClick={save}
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-xl bg-[var(--staff)] px-6 py-3 font-semibold text-white disabled:opacity-60"
-          >
-            {saving && <LoaderCircle size={18} className="animate-spin" />}
-            Запази
-          </button>
-        </div>
+        </>
       }
     >
       <div className="space-y-4">
@@ -201,7 +227,11 @@ export function NewBookingSheet({
 
         <div className="grid grid-cols-[1fr_auto] gap-3">
           <Field label="Специалист">
-            <select value={specialist} onChange={(e) => changeSpecialist(Number(e.target.value))} className={inputClass}>
+            <select
+              value={specialist}
+              onChange={(e) => changeSpecialist(Number(e.target.value))}
+              className={inputClass}
+            >
               {specialists.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -250,100 +280,103 @@ export function NewBookingSheet({
           </>
         ) : (
           <>
-        <ClientPicker
-          client={client}
-          newClient={newClient}
-          onClient={(c) => {
-            setClient(c);
-            setNewClient(null);
-          }}
-          onNewClient={(c) => {
-            setNewClient(c);
-            setClient(null);
-          }}
-        />
-
-        <div>
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Услуги</span>
-          {selected.length > 0 && (
-            <ul className="mb-2 space-y-1.5">
-              {selected.map((s) => (
-                <li key={s.id} className="flex items-center gap-2 rounded-lg bg-[var(--staff)]/10 px-3 py-2">
-                  <span className="flex-1 text-sm font-medium text-neutral-900">{s.name}</span>
-                  <span className="text-xs text-neutral-500">
-                    {formatDuration(s.duration)} · {formatPrice(s.price)}
-                  </span>
-                  <button
-                    aria-label={`Махни ${s.name}`}
-                    onClick={() => setChosen((ids) => ids.filter((id) => id !== s.id))}
-                    className="p-1 text-neutral-500"
-                  >
-                    <X size={16} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="relative">
-            <Search size={16} className="pointer-events-none absolute top-3.5 left-3 text-neutral-400" />
-            <input
-              value={serviceQuery}
-              onChange={(e) => setServiceQuery(e.target.value)}
-              placeholder="Търси услуга…"
-              className={`${inputClass} pl-9`}
+            <ClientPicker
+              client={client}
+              newClient={newClient}
+              missing={missing}
+              onClient={(c) => {
+                setClient(c);
+                setNewClient(null);
+                setMissing([]);
+              }}
+              onNewClient={(c) => {
+                setNewClient(c);
+                setClient(null);
+                setMissing((m) =>
+                  m.filter((f) =>
+                    f === "first_name" ? !c?.first_name.trim() : f === "phone" ? !c?.phone.trim() : f !== "client",
+                  ),
+                );
+              }}
             />
-          </div>
-          <ul className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-neutral-200">
-            {matches.map((s) => (
-              <li key={s.id}>
-                <button
-                  onClick={() => {
-                    setChosen((ids) => [...ids, s.id]);
-                    setServiceQuery("");
-                  }}
-                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-neutral-50"
-                >
-                  <span>
-                    <span className="block text-sm text-neutral-900">{s.name}</span>
-                    <span className="block text-xs text-neutral-500">
-                      {recent.includes(s.id) && (
-                        <span className="mr-1.5 rounded bg-[var(--staff)]/10 px-1.5 py-0.5 font-semibold text-[var(--staff)]">
-                          Последно
+
+            <div>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Услуги</span>
+              {missing.includes("services") && !selected.length && (
+                <p className="mb-1 text-sm text-red-600">Изберете поне една услуга.</p>
+              )}
+              {selected.length > 0 && (
+                <ul className="mb-2 space-y-1.5">
+                  {selected.map((s) => (
+                    <li key={s.id} className="flex items-center gap-2 rounded-lg bg-[var(--staff)]/10 px-3 py-2">
+                      <span className="flex-1 text-sm font-medium text-neutral-900">{s.name}</span>
+                      <span className="text-xs text-neutral-500">
+                        {formatDuration(s.duration)} · {formatPrice(s.price)}
+                      </span>
+                      <button
+                        aria-label={`Махни ${s.name}`}
+                        onClick={() => setChosen((ids) => ids.filter((id) => id !== s.id))}
+                        className="p-1 text-neutral-500"
+                      >
+                        <X size={16} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="relative">
+                <Search size={16} className="pointer-events-none absolute top-3.5 left-3 text-neutral-400" />
+                <input
+                  value={serviceQuery}
+                  onChange={(e) => setServiceQuery(e.target.value)}
+                  placeholder="Търси услуга…"
+                  className={`${inputClass} pl-9 ${missing.includes("services") && !selected.length ? invalidClass : ""}`}
+                />
+              </div>
+              <ul className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-neutral-200">
+                {matches.map((s) => (
+                  <li key={s.id}>
+                    <button
+                      onClick={() => {
+                        setChosen((ids) => [...ids, s.id]);
+                        setServiceQuery("");
+                      }}
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-neutral-50"
+                    >
+                      <span>
+                        <span className="block text-sm text-neutral-900">{s.name}</span>
+                        <span className="block text-xs text-neutral-500">
+                          {recent.includes(s.id) && (
+                            <span className="mr-1.5 rounded bg-[var(--staff)]/10 px-1.5 py-0.5 font-semibold text-[var(--staff)]">
+                              Последно
+                            </span>
+                          )}
+                          {s.group}
                         </span>
-                      )}
-                      {s.group}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-xs text-neutral-500">
-                    {formatDuration(s.duration)} · {formatPrice(s.price)}
-                  </span>
-                </button>
-              </li>
-            ))}
-            {!matches.length && <li className="px-3 py-2 text-sm text-neutral-500">Няма други услуги.</li>}
-          </ul>
-        </div>
+                      </span>
+                      <span className="shrink-0 text-xs text-neutral-500">
+                        {formatDuration(s.duration)} · {formatPrice(s.price)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+                {!matches.length && <li className="px-3 py-2 text-sm text-neutral-500">Няма други услуги.</li>}
+              </ul>
+            </div>
 
-        {selected.length > 0 && (
-          <DurationPicker
-            value={duration}
-            usual={usualDuration}
-            min={5 * selected.length}
-            onChange={changeDuration}
-          />
-        )}
+            {selected.length > 0 && (
+              <DurationPicker
+                value={duration}
+                usual={usualDuration}
+                min={5 * selected.length}
+                onChange={changeDuration}
+              />
+            )}
 
-        <Field label="Вътрешна бележка">
-          <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} className={inputClass} />
-        </Field>
-
+            <Field label="Вътрешна бележка">
+              <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} className={inputClass} />
+            </Field>
           </>
-        )}
-
-        {error && (
-          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </p>
         )}
       </div>
     </Sheet>
@@ -412,11 +445,13 @@ function DurationPicker({
 function ClientPicker({
   client,
   newClient,
+  missing,
   onClient,
   onNewClient,
 }: {
   client: StaffClient | null;
   newClient: NewClient | null;
+  missing: Missing[];
   onClient: (c: StaffClient | null) => void;
   onNewClient: (c: NewClient | null) => void;
 }) {
@@ -473,18 +508,40 @@ function ClientPicker({
           </button>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <input placeholder="Име" value={newClient.first_name} onChange={set("first_name")} className={inputClass} />
+          <input
+            placeholder="Име"
+            aria-label="Име"
+            aria-invalid={missing.includes("first_name")}
+            value={newClient.first_name}
+            onChange={set("first_name")}
+            className={`${inputClass} ${missing.includes("first_name") ? invalidClass : ""}`}
+          />
           <input placeholder="Фамилия" value={newClient.last_name} onChange={set("last_name")} className={inputClass} />
           <input
-            placeholder="Телефон"
+            placeholder="Телефон *"
+            aria-label="Телефон"
+            aria-invalid={missing.includes("phone")}
             type="tel"
             value={newClient.phone}
             onChange={set("phone")}
+            className={`${inputClass} ${missing.includes("phone") ? invalidClass : ""}`}
+          />
+          <input
+            placeholder="Имейл"
+            type="email"
+            value={newClient.email}
+            onChange={set("email")}
             className={inputClass}
           />
-          <input placeholder="Имейл" type="email" value={newClient.email} onChange={set("email")} className={inputClass} />
+          {(missing.includes("first_name") || missing.includes("phone")) && (
+            <p className="col-span-2 text-sm text-red-600">
+              {missing.includes("phone")
+                ? "Нужен е телефон: по него разпознаваме клиента следващия път."
+                : "Нужно е име на клиента."}
+            </p>
+          )}
           <p className="col-span-2 text-xs text-neutral-500">
-            С този имейл клиентът вижда часовете си в профила на сайта.
+            Име и телефон са задължителни. С имейла клиентът вижда часовете си в профила на сайта.
           </p>
         </div>
       </div>
@@ -500,7 +557,7 @@ function ClientPicker({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Име или телефон…"
-          className={`${inputClass} pl-9`}
+          className={`${inputClass} pl-9 ${missing.includes("client") ? invalidClass : ""}`}
         />
       </div>
       {results.length > 0 && (
@@ -522,7 +579,10 @@ function ClientPicker({
         onClick={() => {
           const digits = query.replace(/[^\d+]/g, "");
           const looksLikePhone = digits.length >= 6;
-          onNewClient({ ...EMPTY_CLIENT, ...(looksLikePhone ? { phone: query.trim() } : { first_name: query.trim() }) });
+          onNewClient({
+            ...EMPTY_CLIENT,
+            ...(looksLikePhone ? { phone: query.trim() } : { first_name: query.trim() }),
+          });
         }}
         className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-[var(--staff)]"
       >
