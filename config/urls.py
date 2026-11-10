@@ -1,7 +1,7 @@
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
+from django.views.static import serve
 
 from apps.accounts import api as accounts_api
 from apps.assistant import api as assistant_api
@@ -105,5 +105,6 @@ urlpatterns = [
     path("api/", include((api_urlpatterns, "api"))),
 ]
 
-# In production the web server serves uploaded files; this only works with DEBUG on.
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Uploaded files (specialists' photos). On by default only with DEBUG; the Docker setup turns it on.
+if settings.SERVE_MEDIA:
+    urlpatterns += [re_path(r"^media/(?P<path>.*)$", serve, {"document_root": settings.MEDIA_ROOT})]
