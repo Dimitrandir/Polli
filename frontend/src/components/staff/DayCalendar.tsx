@@ -578,6 +578,10 @@ export function DayCalendar({
           specialists={specialists}
           onClose={() => setSelectedId(null)}
           onChanged={() => load()}
+          onMoved={(day) => {
+            // Follow the visit when it went to a day that isn't on screen.
+            if (!columns.some((c) => c.date === day)) setDate(day);
+          }}
         />
       )}
       {draft && specialists.length > 0 && (

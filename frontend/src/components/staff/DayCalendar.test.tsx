@@ -291,4 +291,28 @@ describe("DayCalendar", () => {
     expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
     window.localStorage.clear();
   });
+
+  it("moves a visit from its card to another day, time and specialist", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<DayCalendar initialDate={DAY} />);
+    await user.click(await screen.findByText("Димка Тошева"));
+    let dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /Премести \(друг ден/ }));
+    dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("Дата")).toHaveValue(DAY);
+    expect(within(dialog).getByLabelText("Начален час")).toHaveValue("10:00");
+    fireEvent.change(within(dialog).getByLabelText("Дата"), { target: { value: "2026-10-22" } });
+    fireEvent.change(within(dialog).getByLabelText("Начален час"), { target: { value: "15:30" } });
+    await user.selectOptions(within(dialog).getByLabelText("Специалист"), "2");
+    await user.click(within(dialog).getByRole("button", { name: "Премести" }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/staff/bookings/5/move",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ item: 8, start: "2026-10-22T15:30:00", specialist: 2 }),
+      }),
+    );
+    expect(await screen.findByText("22 ОКТ")).toBeInTheDocument();
+  });
 });

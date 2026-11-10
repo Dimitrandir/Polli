@@ -1,9 +1,10 @@
 "use client";
 
-import { Ban, Check, Globe, History, IdCard, Mail, Phone, RotateCcw, UserX } from "lucide-react";
+import { Ban, CalendarClock, Check, Globe, History, IdCard, Mail, Phone, RotateCcw, UserX } from "lucide-react";
 import { useState } from "react";
 
 import { ApiError } from "@/lib/api";
+import { clockLabel, salonClock, salonDateTime } from "@/lib/calendar";
 import { formatLongDate, formatPrice, formatShortDate, formatTime } from "@/lib/format";
 import { staffApi, type StaffSpecialist, type StaffBooking } from "@/lib/staff-api";
 
@@ -22,11 +23,14 @@ export function BookingSheet({
   specialists,
   onClose,
   onChanged,
+  onMoved,
 }: {
   booking: StaffBooking;
   specialists: StaffSpecialist[];
   onClose: () => void;
   onChanged: () => void;
+  /** After a move: the day the visit is on now, so the calendar can follow it. */
+  onMoved?: (date: string) => void;
 }) {
   const [note, setNote] = useState(booking.internal_note);
   const [busy, setBusy] = useState(false);
@@ -34,6 +38,12 @@ export function BookingSheet({
   const [showClient, setShowClient] = useState(false);
   const names = new Map(specialists.map((s) => [s.id, s.name]));
   const phone = booking.client.phone;
+  const first = booking.items[0];
+  const from = salonClock(first?.start ?? booking.start);
+  const [moving, setMoving] = useState(false);
+  const [moveDate, setMoveDate] = useState(from.date);
+  const [moveTime, setMoveTime] = useState(clockLabel(from.minutes));
+  const [moveTo, setMoveTo] = useState(first?.specialist ?? specialists[0]?.id ?? 0);
 
   async function run(action: () => Promise<unknown>, close = true) {
     setBusy(true);
@@ -57,6 +67,24 @@ export function BookingSheet({
 
   const active = booking.status === "confirmed";
   const editable = booking.can_edit !== false;
+  // A client's own online booking may be moved by anyone on the team (as with dragging).
+  const movable = active && !!first && (editable || booking.source === "online");
+
+  function move() {
+    const [h, m] = moveTime.split(":").map(Number);
+    if (!moveDate || Number.isNaN(h) || Number.isNaN(m)) {
+      setError("Изберете дата и час.");
+      return;
+    }
+    void run(async () => {
+      await staffApi.moveBooking(booking.id, {
+        item: first.id,
+        start: salonDateTime(moveDate, h * 60 + m),
+        specialist: moveTo,
+      });
+      onMoved?.(moveDate);
+    });
+  }
 
   if (showClient) {
     return <ClientSheet clientId={booking.client.id} onClose={() => setShowClient(false)} />;
@@ -67,45 +95,119 @@ export function BookingSheet({
       title={`${formatTime(booking.start)} – ${formatTime(booking.end)}`}
       onClose={onClose}
       footer={
-        !editable ? (
-          <p className="text-center text-sm text-neutral-500">
-            Часът е на колега. Може да го променя администратор, специалистът или който го е записал.
-          </p>
-        ) : (
-        <div className="grid grid-cols-3 gap-2">
-          {active ? (
-            <>
+        <>
+          {movable && !moving && (
+            <div className="mb-2">
               <ActionButton
-                icon={<Check size={18} />}
-                label="Изпълнена"
-                tone="success"
+                icon={<CalendarClock size={18} />}
+                label="Премести (друг ден, час или специалист)"
+                tone="staff"
                 disabled={busy}
-                onClick={() => run(() => staffApi.updateBooking(booking.id, { status: "completed" }))}
-              />
-              <ActionButton
-                icon={<UserX size={18} />}
-                label="Неявяване"
-                tone="warning"
-                disabled={busy}
-                onClick={() => run(() => staffApi.updateBooking(booking.id, { status: "no_show" }))}
-              />
-              <ActionButton icon={<Ban size={18} />} label="Откажи" tone="danger" disabled={busy} onClick={cancel} />
-            </>
-          ) : (
-            <div className="col-span-3">
-              <ActionButton
-                icon={<RotateCcw size={18} />}
-                label="Върни като потвърдена"
-                tone="neutral"
-                disabled={busy}
-                onClick={() => run(() => staffApi.updateBooking(booking.id, { status: "confirmed" }))}
+                onClick={() => setMoving(true)}
               />
             </div>
           )}
-        </div>
-        )
+          {moving ? (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                disabled={busy}
+                onClick={() => setMoving(false)}
+                className="rounded-xl border border-neutral-300 px-2 py-3 text-sm font-semibold text-neutral-700"
+              >
+                Назад
+              </button>
+              <ActionButton
+                icon={<CalendarClock size={18} />}
+                label="Премести"
+                tone="staff"
+                disabled={busy}
+                onClick={move}
+              />
+            </div>
+          ) : !editable ? (
+            <p className="text-center text-sm text-neutral-500">
+              Часът е на колега. Може да го променя администратор, специалистът или който го е записал.
+            </p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {active ? (
+                <>
+                  <ActionButton
+                    icon={<Check size={18} />}
+                    label="Изпълнена"
+                    tone="success"
+                    disabled={busy}
+                    onClick={() => run(() => staffApi.updateBooking(booking.id, { status: "completed" }))}
+                  />
+                  <ActionButton
+                    icon={<UserX size={18} />}
+                    label="Неявяване"
+                    tone="warning"
+                    disabled={busy}
+                    onClick={() => run(() => staffApi.updateBooking(booking.id, { status: "no_show" }))}
+                  />
+                  <ActionButton
+                    icon={<Ban size={18} />}
+                    label="Откажи"
+                    tone="danger"
+                    disabled={busy}
+                    onClick={cancel}
+                  />
+                </>
+              ) : (
+                <div className="col-span-3">
+                  <ActionButton
+                    icon={<RotateCcw size={18} />}
+                    label="Върни като потвърдена"
+                    tone="neutral"
+                    disabled={busy}
+                    onClick={() => run(() => staffApi.updateBooking(booking.id, { status: "confirmed" }))}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </>
       }
     >
+      {moving && (
+        <div className="mb-5 rounded-xl border-2 border-[var(--staff)]/40 bg-[var(--staff)]/5 p-3">
+          <p className="mb-3 font-semibold text-neutral-900">Къде да преместя часа?</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Дата">
+              <input
+                type="date"
+                value={moveDate}
+                onChange={(e) => setMoveDate(e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Начален час">
+              <input
+                type="time"
+                step={300}
+                value={moveTime}
+                onChange={(e) => setMoveTime(e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+          <div className="mt-3">
+            <Field label={booking.items.length > 1 ? `Специалист (за „${first.service_name}“)` : "Специалист"}>
+              <select value={moveTo} onChange={(e) => setMoveTo(Number(e.target.value))} className={inputClass}>
+                {specialists.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          {booking.items.length > 1 && (
+            <p className="mt-2 text-xs text-neutral-500">Всички услуги в часа се местят заедно и запазват реда си.</p>
+          )}
+        </div>
+      )}
       <p className="text-sm text-neutral-500">
         {formatLongDate(booking.start)} · {STATUS_LABEL[booking.status]}
         {booking.source === "online" && (
@@ -201,7 +303,8 @@ export function BookingSheet({
                 <span className="text-neutral-500">
                   {formatShortDate(e.at)}, {formatTime(e.at)}
                 </span>{" "}
-                · <span className="font-medium text-neutral-900">{e.who}</span> {e.text.charAt(0).toLowerCase() + e.text.slice(1)}
+                · <span className="font-medium text-neutral-900">{e.who}</span>{" "}
+                {e.text.charAt(0).toLowerCase() + e.text.slice(1)}
               </li>
             ))}
           </ul>
@@ -218,6 +321,7 @@ export function BookingSheet({
 }
 
 const TONES = {
+  staff: "bg-[var(--staff)] text-white",
   success: "bg-green-600 text-white",
   warning: "bg-amber-500 text-white",
   danger: "bg-red-600 text-white",
