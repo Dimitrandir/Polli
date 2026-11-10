@@ -49,12 +49,22 @@ export function MonthPicker({
   value,
   onPick,
   onClose,
+  inline = false,
 }: {
   value: string;
   onPick: (date: string) => void;
   onClose: () => void;
+  /** In the side panel on a tablet: always open, follows the shown day, no backdrop. */
+  inline?: boolean;
 }) {
   const [month, setMonth] = useState(monthKey(value));
+  const shownMonth = monthKey(value);
+  // Paging the calendar with the arrows in the top bar moves the open month along.
+  const [followed, setFollowed] = useState(shownMonth);
+  if (followed !== shownMonth) {
+    setFollowed(shownMonth);
+    setMonth(shownMonth);
+  }
   const [load, setLoad] = useState<MonthLoad | null>(null);
   const today = todayKey();
 
@@ -75,11 +85,17 @@ export function MonthPicker({
 
   return (
     <>
-      <button aria-label="Затвори календара" className="fixed inset-0 z-40 cursor-default" onClick={onClose} />
+      {!inline && (
+        <button aria-label="Затвори календара" className="fixed inset-0 z-40 cursor-default" onClick={onClose} />
+      )}
       <div
-        role="dialog"
+        role={inline ? "group" : "dialog"}
         aria-label="Избери дата"
-        className="absolute top-full left-2 z-50 mt-1 w-[min(24rem,calc(100vw-1rem))] rounded-xl bg-white p-3 text-neutral-900 shadow-2xl"
+        className={
+          inline
+            ? "w-full text-neutral-900"
+            : "absolute top-full left-2 z-50 mt-1 w-[min(24rem,calc(100vw-1rem))] rounded-xl bg-white p-3 text-neutral-900 shadow-2xl"
+        }
       >
         <div className="mb-2 flex items-center justify-between px-2">
           <span className="text-lg font-bold">
@@ -138,7 +154,11 @@ export function MonthPicker({
                           key={s.id}
                           title={`${s.name}: ${Math.round(busy * 100)}%`}
                           className="rounded-full"
-                          style={{ width: size, height: size, background: specialistColor(s.color, index) }}
+                          style={{
+                            width: size,
+                            height: size,
+                            background: specialistColor(s.color, index),
+                          }}
                         />
                       );
                     })}
