@@ -35,6 +35,11 @@ class SalonInfo(models.Model):
         blank=True,
         help_text="До колко часа преди началото клиентът може да откаже сам.",
     )
+    hide_client_phones = models.BooleanField(
+        "скрий телефоните на клиентите от служителите",
+        default=False,
+        help_text="Служителите, които не са администратори, не виждат телефоните на клиентите в календара.",
+    )
 
     class Meta:
         verbose_name = "информация за салона"

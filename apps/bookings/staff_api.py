@@ -25,7 +25,7 @@ from apps.catalog.models import Service
 from apps.clients.models import Client
 from apps.clients.phone import normalize_phone
 from apps.staff.models import Specialist, SpecialistService, TimeOff
-from apps.staff.roles import can_manage_specialist, is_salon_admin
+from apps.staff.roles import can_manage_specialist, can_see_client_phones, is_salon_admin
 from apps.staff.schedule import aware, working_intervals
 
 from . import emails
@@ -61,6 +61,7 @@ def _user_payload(user):
             "name": (specialist.name if specialist else user.get_full_name()) or user.get_username(),
             "specialist": specialist.pk if specialist else None,
             "is_admin": is_salon_admin(user),
+            "can_see_phones": can_see_client_phones(user),
         },
     }
 
@@ -89,6 +90,22 @@ class StaffClientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Client
         fields = ["id", "name", "first_name", "last_name", "nickname", "phone", "email", "notes", "is_blocked"]
+
+    def to_representation(self, client):
+        # The phone goes out only to whom the salon lets see it (pass the user in the context).
+        data = super().to_representation(client)
+        if "can_see_phones" not in self.context:  # one check for a whole list of bookings
+            self.context["can_see_phones"] = can_see_client_phones(self.context.get("user"))
+        return hide_phone(data, visible=self.context["can_see_phones"])
+
+
+def hide_phone(data, user=None, *, visible=None):
+    """`data` with the client's phone taken out when the salon hides phones from this team member."""
+    if visible is None:
+        visible = can_see_client_phones(user)
+    if visible:
+        return {**data, "phone_hidden": False}
+    return {**data, "phone": "", "phone_hidden": True}
 
 
 class StaffItemSerializer(serializers.Serializer):
@@ -317,18 +334,24 @@ class StaffClientSearchView(APIView):
                 .filter(last_visit__isnull=False)
                 .order_by("-last_visit")[:RECENT_CLIENTS]
             )
-            return Response(StaffClientSerializer(recent, many=True).data)
+            return Response(StaffClientSerializer(recent, many=True, context={"user": request.user}).data)
         if len(query) < 2:
             return Response([])
         condition = Q(email__icontains=query) | Q(nickname__icontains=query)
         for word in query.split():
             condition |= Q(first_name__icontains=word) | Q(last_name__icontains=word) | Q(nickname__icontains=word)
         digits = "".join(ch for ch in query if ch.isdigit())
-        if len(digits) >= 3:
+        if not can_see_client_phones(request.user):
+            # Phones are hidden from this team member: only a whole number finds its client, so that
+            # searching part of a number cannot reveal it digit by digit.
+            phone = normalize_phone(query)
+            if len(digits) >= 8 and phone:
+                condition |= Q(phone=phone)
+        elif len(digits) >= 3:
             # Phones are stored as +359888123456; "0888 12" should match too.
             condition |= Q(phone__contains=digits.lstrip("0") or digits)
         clients = Client.objects.filter(condition).order_by("first_name", "last_name")[:CLIENT_SEARCH_LIMIT]
-        return Response(StaffClientSerializer(clients, many=True).data)
+        return Response(StaffClientSerializer(clients, many=True, context={"user": request.user}).data)
 
     def post(self, request):
         """A new client added from the clients page."""
@@ -344,7 +367,9 @@ class StaffClientSearchView(APIView):
         client = Client.objects.create(
             first_name=v["first_name"].strip(), last_name=v["last_name"].strip(), phone=phone, email=v["email"]
         )
-        return Response(StaffClientSerializer(client).data, status=status.HTTP_201_CREATED)
+        return Response(
+            StaffClientSerializer(client, context={"user": request.user}).data, status=status.HTTP_201_CREATED
+        )
 
 
 MIN_ITEM_MINUTES = 5

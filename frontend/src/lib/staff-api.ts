@@ -4,7 +4,14 @@ import { request } from "./api";
 import type { BookingStatus } from "./api";
 import type { Message } from "./account-api";
 
-export type StaffUser = { username: string; name: string; specialist: number | null; is_admin?: boolean };
+export type StaffUser = {
+  username: string;
+  name: string;
+  specialist: number | null;
+  is_admin?: boolean;
+  /** False when the administrator hid clients' phones from the team. */
+  can_see_phones?: boolean;
+};
 export type StaffSession = { authenticated: boolean; user: StaffUser | null };
 
 export type Interval = { start: string; end: string };
@@ -22,7 +29,9 @@ export type StaffClient = {
   last_name: string;
   /** What the team calls the client ("Митко"); only the salon sees it. */
   nickname?: string;
+  /** Empty when the salon hides clients' phones from this team member (see `phone_hidden`). */
   phone: string;
+  phone_hidden?: boolean;
   email: string;
   notes: string;
   is_blocked: boolean;
@@ -127,6 +136,8 @@ export type SalonSettings = {
   max_days_ahead: number;
   min_notice_minutes: number;
   cancellation_hours: number;
+  /** Only administrators see clients' phones. */
+  hide_client_phones: boolean;
   defaults: { max_days_ahead: number; min_notice_minutes: number; cancellation_hours: number };
   opening_hours: Hours[];
 };
@@ -191,6 +202,7 @@ export type ClientCard = {
   last_name: string;
   nickname: string;
   phone: string;
+  phone_hidden?: boolean;
   email: string;
   notes: string;
   is_blocked: boolean;
@@ -212,7 +224,7 @@ export type ClientCard = {
 };
 
 export type Conversation = {
-  client: { id: number; name: string; nickname: string; phone: string };
+  client: { id: number; name: string; nickname: string; phone: string; phone_hidden?: boolean };
   last_message: { text: string; from_client: boolean; created_at: string };
   unread: number;
 };

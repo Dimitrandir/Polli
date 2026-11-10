@@ -33,6 +33,15 @@ def set_salon_admin(user, value):
     user._is_salon_admin = bool(value) or user.is_superuser
 
 
+def can_see_client_phones(user):
+    """Administrators always see clients' phones; the rest of the team unless the salon hid them."""
+    if is_salon_admin(user):
+        return True
+    from apps.salon.models import SalonInfo
+
+    return not SalonInfo.objects.order_by("pk").values_list("hide_client_phones", flat=True).first()
+
+
 def own_specialist_id(user):
     """The specialist record of a logged-in team member, if they have one."""
     if not (user and user.is_authenticated):

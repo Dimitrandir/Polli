@@ -122,12 +122,14 @@ export function BookingSheet({
         </p>
         {booking.client.nickname && <p className="text-sm text-neutral-500">„{booking.client.nickname}“</p>}
         <div className="mt-2 flex flex-wrap gap-2">
-          <a
-            href={`tel:${phone}`}
-            className="inline-flex items-center gap-2 rounded-full bg-[var(--staff)] px-4 py-2 text-sm font-semibold text-white"
-          >
-            <Phone size={16} /> {phone}
-          </a>
+          {phone && (
+            <a
+              href={`tel:${phone}`}
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--staff)] px-4 py-2 text-sm font-semibold text-white"
+            >
+              <Phone size={16} /> {phone}
+            </a>
+          )}
           <button
             onClick={() => setShowClient(true)}
             className="inline-flex items-center gap-2 rounded-full border border-neutral-300 px-4 py-2 text-sm text-neutral-700"
