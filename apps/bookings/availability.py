@@ -36,6 +36,8 @@ class BookingError(Exception):
 class ItemRequest:
     service: Service
     specialist: Specialist | None = None
+    # Staff may book a longer or shorter visit than the service's usual duration.
+    duration_minutes: int | None = None
 
 
 @dataclass
@@ -219,9 +221,9 @@ class AvailabilityEngine:
                 return False
         return True
 
-    def _try(self, data, ss, start, planned):
+    def _try(self, data, ss, start, planned, duration=None):
         """Return a PlannedItem if this specialist can do the service at `start`, else None."""
-        duration = ss.duration_minutes
+        duration = duration or ss.duration_minutes
         end = start + timedelta(minutes=duration)
         busy_until = end + timedelta(minutes=ss.service.buffer_minutes)
         if not self._specialist_free(data, ss.specialist_id, start, busy_until):
@@ -244,8 +246,8 @@ class AvailabilityEngine:
     def _plan_sequential(self, data, start):
         planned = []
         t = start
-        for cands in self.candidates:
-            item = next((i for ss in cands if (i := self._try(data, ss, t, planned))), None)
+        for req, cands in zip(self.requests, self.candidates, strict=True):
+            item = next((i for ss in cands if (i := self._try(data, ss, t, planned, req.duration_minutes))), None)
             if item is None:
                 return None
             planned.append(item)
@@ -257,7 +259,7 @@ class AvailabilityEngine:
         if index == len(self.candidates):
             return planned
         for ss in self.candidates[index]:
-            item = self._try(data, ss, start, planned)
+            item = self._try(data, ss, start, planned, self.requests[index].duration_minutes)
             if item is not None:
                 result = self._plan_parallel(data, start, index + 1, planned + [item])
                 if result:
