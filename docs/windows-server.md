@@ -3,6 +3,10 @@
 Всичко (база данни, Django, сайтът, напомнянията по имейл и тунелът) върви в Docker с една команда.
 Не се инсталират Python, Node.js и PostgreSQL на Windows.
 
+Образите се билдват в GitHub: при всеки push в `main` GitHub Actions (`.github/workflows/docker.yml`) ги публикува в
+`ghcr.io/dimitrandir/polli-backend` и `ghcr.io/dimitrandir/polli-frontend`. Компютърът само ги дърпа и пуска, без да
+билдва нищо.
+
 ## 1. Еднократна подготовка на Windows
 
 1. **Захранване:** Настройки → Система → Захранване → „Заспиване“ = **Никога**. Компютърът трябва да не заспива.
@@ -37,11 +41,20 @@ notepad .env
 
 ## 3. Пускане
 
+Ако репото в GitHub е **частно**, образите също са частни и Docker трябва да влезе в ghcr.io веднъж:
+
+1. GitHub → Settings → Developer settings → Personal access tokens → **Tokens (classic)** → Generate new token
+   (classic) → отметка само на **`read:packages`**, срок по избор → копирайте токена (`ghp_…`).
+2. В PowerShell: `docker login ghcr.io -u Dimitrandir` и при „Password“ поставете токена.
+
+Docker Desktop го помни, второ влизане не трябва. (Ако репото е публично, пропуснете тази стъпка.)
+
 ```powershell
-docker compose -f docker-compose.server.yml up -d --build
+docker compose -f docker-compose.server.yml pull
+docker compose -f docker-compose.server.yml up -d
 ```
 
-Първия път трае 5–10 минути. После, еднократно, съдържанието и потребител за админа:
+Първия път изтеглянето трае няколко минути. После, еднократно, съдържанието и потребител за админа:
 
 ```powershell
 docker compose -f docker-compose.server.yml exec backend python manage.py import_site_content
@@ -74,12 +87,28 @@ docker compose -f docker-compose.server.yml run --rm backend python manage.py ge
 
 | Какво | Команда |
 |---|---|
-| Нова версия от GitHub | `git pull` и после `docker compose -f docker-compose.server.yml up -d --build` |
+| Нова версия от GitHub | `powershell -ExecutionPolicy Bypass -File deploy\update.ps1` |
+| Връщане на стара версия | в `.env` `IMAGE_TAG=sha-1a2b3c4` (първите 7 знака на commit от `main`), после `update.ps1`; празно = най-новата |
+| Билд тук вместо от GitHub | `docker compose -f docker-compose.server.yml up -d --build` |
 | След промяна в `.env` | `docker compose -f docker-compose.server.yml up -d` |
 | Какво върви | `docker compose -f docker-compose.server.yml ps` |
 | Грешки на сървъра | `docker compose -f docker-compose.server.yml logs -f backend` |
 | Спиране | `docker compose -f docker-compose.server.yml down` (данните остават) |
 | Архив на базата | `cmd /c "docker compose -f docker-compose.server.yml exec -T db pg_dump -U sis sis > backup.sql"` |
+
+`update.ps1` прави `git pull`, `docker compose pull` и `up -d`: рестартират се само контейнерите с нов образ, а
+миграциите на базата минават сами при старта на backend. Новият образ е готов около 5 минути след сливане в `main`
+(GitHub → Actions → „Docker images“).
+
+**Автоматично обновяване на всеки 10 минути** (веднъж, в PowerShell от папката `Polli`):
+
+```powershell
+$a = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$PWD\deploy\update.ps1`""
+$t = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 10)
+Register-ScheduledTask -TaskName "Polli update" -Action $a -Trigger $t -Settings (New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew)
+```
+
+Кога е минало последно: `deploy\update.log`. Спиране: `Unregister-ScheduledTask -TaskName "Polli update"`.
 
 Базата и качените снимки са в Docker томове (`pgdata`, `media`) и остават при спиране и обновяване.
 **Не пускайте** `down -v`: то изтрива и тях.

@@ -1,10 +1,15 @@
-# The whole site on one always-on computer (Windows with Docker Desktop, Linux, Mac):
-#   docker compose -f docker-compose.server.yml up -d --build
+# The whole site on one always-on computer (Windows with Docker Desktop, Linux, Mac).
+# Ready images from GitHub (built on every push to main by .github/workflows/docker.yml):
+#   docker compose -f docker-compose.server.yml pull
+#   docker compose -f docker-compose.server.yml up -d
+# Or build here from the source instead: add --build to `up`.
 # Settings come from .env (copy .env.example). The public link of the tunnel:
 #   docker compose -f docker-compose.server.yml logs tunnel
 # Step by step (in Bulgarian): docs/windows-server.md
 
 x-backend: &backend
+  # IMAGE_TAG in .env pins a version (e.g. sha-1a2b3c4) to go back; empty = latest from main.
+  image: ghcr.io/dimitrandir/polli-backend:${IMAGE_TAG:-latest}
   build: .
   env_file: .env
   environment:
@@ -53,6 +58,7 @@ services:
 
   # The website: http://localhost:3000 on this computer.
   frontend:
+    image: ghcr.io/dimitrandir/polli-frontend:${IMAGE_TAG:-latest}
     build: ./frontend
     ports:
       - "3000:3000"
