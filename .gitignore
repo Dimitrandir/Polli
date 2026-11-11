@@ -5,3 +5,4 @@ __pycache__/
 staticfiles/
 media/
 .ruff_cache/
+deploy/update.log
