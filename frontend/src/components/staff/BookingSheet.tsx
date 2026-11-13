@@ -10,6 +10,7 @@ import { staffApi, type StaffSpecialist, type StaffBooking } from "@/lib/staff-a
 
 import { ClientSheet } from "./ClientSheet";
 import { Field, inputClass, Sheet } from "./Sheet";
+import { TimeField } from "./TimeField";
 
 const STATUS_LABEL: Record<StaffBooking["status"], string> = {
   confirmed: "Потвърдена",
@@ -183,13 +184,7 @@ export function BookingSheet({
               />
             </Field>
             <Field label="Начален час">
-              <input
-                type="time"
-                step={300}
-                value={moveTime}
-                onChange={(e) => setMoveTime(e.target.value)}
-                className={inputClass}
-              />
+              <TimeField title="Начален час" value={moveTime} onChange={setMoveTime} />
             </Field>
           </div>
           <div className="mt-3">
