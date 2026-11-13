@@ -5,6 +5,7 @@ import { Plus, X } from "lucide-react";
 import type { Hours } from "@/lib/staff-api";
 
 import { inputClass } from "./Sheet";
+import { TimeField } from "./TimeField";
 
 const DAYS = ["Понеделник", "Вторник", "Сряда", "Четвъртък", "Петък", "Събота", "Неделя"];
 
@@ -94,27 +95,21 @@ export function HoursEditor({
             </div>
             {day.map((h, i) => (
               <div key={i} className="mt-2 flex items-center gap-2">
-                <input
-                  type="time"
-                  step={300}
+                <TimeField
                   aria-label={`${DAYS[weekday]} от`}
+                  title={`${DAYS[weekday]} от`}
                   value={h.start}
                   disabled={disabled}
-                  onChange={(e) =>
-                    e.target.value && setDay(weekday, day.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)))
-                  }
+                  onChange={(v) => setDay(weekday, day.map((x, j) => (j === i ? { ...x, start: v } : x)))}
                   className={`${inputClass} py-1.5`}
                 />
                 <span className="text-neutral-400">–</span>
-                <input
-                  type="time"
-                  step={300}
+                <TimeField
                   aria-label={`${DAYS[weekday]} до`}
+                  title={`${DAYS[weekday]} до`}
                   value={h.end}
                   disabled={disabled}
-                  onChange={(e) =>
-                    e.target.value && setDay(weekday, day.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))
-                  }
+                  onChange={(v) => setDay(weekday, day.map((x, j) => (j === i ? { ...x, end: v } : x)))}
                   className={`${inputClass} py-1.5`}
                 />
                 {day.length > 1 && !disabled && (

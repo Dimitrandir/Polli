@@ -9,6 +9,7 @@ import { formatDuration, formatLongDate, formatPrice } from "@/lib/format";
 import { staffApi, type StaffSpecialist, type NewClient, type StaffClient, type StaffService } from "@/lib/staff-api";
 
 import { Field, inputClass, Sheet } from "./Sheet";
+import { TimeField } from "./TimeField";
 
 export type NewBookingDraft = { date: string; specialist: number; minutes: number; client?: StaffClient | null };
 
@@ -240,28 +241,14 @@ export function NewBookingSheet({
             </select>
           </Field>
           <Field label="Начало">
-            <input
-              type="time"
-              step={300}
-              required
-              value={time}
-              onChange={(e) => e.target.value && setTime(e.target.value)}
-              className={inputClass}
-            />
+            <TimeField title="Начало" value={time} onChange={setTime} />
           </Field>
         </div>
 
         {kind === "block" ? (
           <>
             <Field label="До">
-              <input
-                type="time"
-                step={300}
-                required
-                value={blockEnd}
-                onChange={(e) => e.target.value && setBlockEnd(e.target.value)}
-                className={inputClass}
-              />
+              <TimeField title="До" value={blockEnd} onChange={setBlockEnd} />
             </Field>
             <Field label="Причина">
               <input value={reason} onChange={(e) => setReason(e.target.value)} className={inputClass} />
