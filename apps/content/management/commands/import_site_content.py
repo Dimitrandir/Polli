@@ -16,7 +16,7 @@ from apps.staff.models import Specialist, SpecialistService, WorkingHours
 
 DEFAULT_DATA_DIR = Path(settings.BASE_DIR) / "data" / "old-site"
 DEFAULT_MEDIA_DIR = Path(settings.BASE_DIR) / "data" / "press"
-MEDIA_TEXT_FIELDS = ["url", "summary", "body", "article"]
+MEDIA_TEXT_FIELDS = ["url", "summary", "article"]
 
 
 def read_markdown(path):
@@ -213,8 +213,11 @@ class Command(BaseCommand):
             article = self.upsert(MediaArticle, {"slug": meta["slug"]}, values)
             if self.overwrite:
                 continue
-            # A link, summary or text found later fills in what is still empty, without touching admin edits.
+            # A link or summary found later fills in what is still empty, without touching admin edits. The notes for
+            # the assistant are kept in the files, so they always follow them.
             missing = [f for f in MEDIA_TEXT_FIELDS if values[f] and not getattr(article, f)]
+            if values["body"] != article.body:
+                missing.append("body")
             if missing:
                 for field in missing:
                     setattr(article, field, values[field])
