@@ -144,8 +144,12 @@ class ImportSiteContentTests(TestCase):
 
     def test_media_found_later_fills_in_without_touching_admin_edits(self):
         self.run_import()
-        MediaArticle.objects.filter(slug="profit-izvan-klisheto").update(url="", summary="Редактирано в админа")
+        MediaArticle.objects.filter(slug="profit-izvan-klisheto").update(
+            url="", summary="Редактирано в админа", body="стари бележки"
+        )
         self.run_import()
         profit = MediaArticle.objects.get(slug="profit-izvan-klisheto")
         self.assertEqual(profit.url, "https://profit.bg/article/2024102419063827405")
         self.assertEqual(profit.summary, "Редактирано в админа")
+        # The assistant's notes live in data/press and follow the files.
+        self.assertIn("Hair Academy", profit.body)

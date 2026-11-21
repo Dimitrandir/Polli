@@ -71,8 +71,8 @@ class MediaArticle(models.Model):
     body = models.TextField(
         "бележки за асистента (Markdown)",
         blank=True,
-        help_text="Бележки със свои думи по оригинала. Не се показват в сайта; "
-        "ползва ги AI асистентът с линк към оригинала.",
+        help_text="Бележки със свои думи по оригинала. Не се показват в сайта; ползва ги AI асистентът с линк към "
+        "оригинала. Пазят се в data/press и import_site_content ги презаписва оттам.",
     )
     is_published = models.BooleanField("показва се", default=True)
 
