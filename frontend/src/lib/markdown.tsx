@@ -15,7 +15,8 @@ const OLD_SITE_PAGES: Record<string, string> = {
   "/services/": "/uslugi",
 };
 
-const NEW_SITE_PATH = /^\/(statii|uslugi|rezervacia|kontakti|za-nas|obshti-usloviya|poveritelnost)(\/[^/\s]*)?$/;
+const NEW_SITE_PATH =
+  /^\/(statii|v-mediite|uslugi|rezervacia|kontakti|za-nas|obshti-usloviya|poveritelnost)(\/[^/\s]*)?$/;
 
 /** Where a link should point on the new site. Links to the old site go to the matching new page. */
 export function localHref(href: string): string | null {
@@ -27,7 +28,8 @@ export function localHref(href: string): string | null {
   } catch {
     return null;
   }
-  if (!["http:", "https:", "mailto:", "tel:"].includes(url.protocol)) return null;
+  if (!["http:", "https:", "mailto:", "tel:"].includes(url.protocol))
+    return null;
   if (!OLD_SITE_HOSTS.has(url.hostname)) return url.href;
   const path = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
   if (OLD_SITE_PAGES[path]) return OLD_SITE_PAGES[path];
@@ -81,7 +83,13 @@ const BULLET = /^[*-]\s+/;
 const NUMBERED = /^(\d+)\.\s+/;
 
 function startsBlock(line: string): boolean {
-  return HEADING.test(line) || RULE.test(line) || QUOTE.test(line) || BULLET.test(line) || NUMBERED.test(line);
+  return (
+    HEADING.test(line) ||
+    RULE.test(line) ||
+    QUOTE.test(line) ||
+    BULLET.test(line) ||
+    NUMBERED.test(line)
+  );
 }
 
 function withBreaks(lines: string[], key: string): ReactNode[] {
@@ -114,14 +122,20 @@ export function renderMarkdown(source: string): ReactNode[] {
       i++;
     } else if (QUOTE.test(line)) {
       const quoted: string[] = [];
-      while (i < lines.length && QUOTE.test(lines[i])) quoted.push(lines[i++].replace(QUOTE, ""));
-      blocks.push(<blockquote key={key}>{renderMarkdown(quoted.join("\n"))}</blockquote>);
+      while (i < lines.length && QUOTE.test(lines[i]))
+        quoted.push(lines[i++].replace(QUOTE, ""));
+      blocks.push(
+        <blockquote key={key}>{renderMarkdown(quoted.join("\n"))}</blockquote>,
+      );
     } else if (BULLET.test(line) || NUMBERED.test(line)) {
       const ordered = NUMBERED.test(line);
       const marker = ordered ? NUMBERED : BULLET;
       const items: string[] = [];
-      while (i < lines.length && marker.test(lines[i])) items.push(lines[i++].replace(marker, ""));
-      const children = items.map((item, n) => <li key={`${key}-${n}`}>{renderInline(item.trim(), `${key}-${n}`)}</li>);
+      while (i < lines.length && marker.test(lines[i]))
+        items.push(lines[i++].replace(marker, ""));
+      const children = items.map((item, n) => (
+        <li key={`${key}-${n}`}>{renderInline(item.trim(), `${key}-${n}`)}</li>
+      ));
       blocks.push(
         ordered ? (
           <ol key={key} start={Number(line.match(NUMBERED)?.[1] ?? 1)}>
@@ -133,13 +147,22 @@ export function renderMarkdown(source: string): ReactNode[] {
       );
     } else {
       const paragraph: string[] = [];
-      while (i < lines.length && lines[i].trim() && !startsBlock(lines[i])) paragraph.push(lines[i++]);
+      while (i < lines.length && lines[i].trim() && !startsBlock(lines[i]))
+        paragraph.push(lines[i++]);
       blocks.push(<p key={key}>{withBreaks(paragraph, key)}</p>);
     }
   }
   return blocks;
 }
 
-export function Markdown({ source, className }: { source: string; className?: string }) {
-  return <div className={className ?? "prose-salon"}>{renderMarkdown(source)}</div>;
+export function Markdown({
+  source,
+  className,
+}: {
+  source: string;
+  className?: string;
+}) {
+  return (
+    <div className={className ?? "prose-salon"}>{renderMarkdown(source)}</div>
+  );
 }

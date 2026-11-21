@@ -42,3 +42,44 @@ class Page(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class MediaArticle(models.Model):
+    """An interview or article by the salon's team published by another outlet.
+
+    The site shows the outlet, date, title and our short summary with a link to the original. The full text is
+    kept only for the assistant, which quotes from it and always links to the original publication: the rights
+    to the text belong to the outlet.
+    """
+
+    title = models.CharField("заглавие", max_length=300)
+    slug = models.SlugField("slug", max_length=200, unique=True)
+    outlet = models.CharField("медия", max_length=120, help_text="Например „Жената днес“.")
+    outlet_site = models.CharField("сайт на медията", max_length=120, blank=True, help_text="Например jenatadnes.com.")
+    url = models.URLField("адрес на публикацията", max_length=500, blank=True)
+    article = models.ForeignKey(
+        Article,
+        verbose_name="статия при нас",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="media_mentions",
+        help_text="Наша статия за същата публикация, ако има. Тогава асистентът ползва нея.",
+    )
+    published_on = models.DateField("дата на публикуване", null=True, blank=True)
+    summary = models.TextField("кратко резюме", blank=True, help_text="Показва се в сайта. Със свои думи, не копие.")
+    body = models.TextField(
+        "бележки за асистента (Markdown)",
+        blank=True,
+        help_text="Бележки със свои думи по оригинала. Не се показват в сайта; "
+        "ползва ги AI асистентът с линк към оригинала.",
+    )
+    is_published = models.BooleanField("показва се", default=True)
+
+    class Meta:
+        ordering = [models.F("published_on").desc(nulls_last=True), "title"]
+        verbose_name = "публикация в медиите"
+        verbose_name_plural = "публикации в медиите"
+
+    def __str__(self):
+        return f"{self.outlet}: {self.title}"

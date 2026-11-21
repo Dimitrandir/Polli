@@ -45,6 +45,7 @@ api_urlpatterns = [
     path("articles/", content_api.ArticleListView.as_view(), name="article-list"),
     path("articles/<str:slug>/", content_api.ArticleDetailView.as_view(), name="article-detail"),
     path("pages/<str:slug>/", content_api.PageDetailView.as_view(), name="page-detail"),
+    path("media-articles/", content_api.MediaArticleListView.as_view(), name="media-article-list"),
     # Push notifications on this device.
     path("push/", push_api.PushStatusView.as_view(), name="push-status"),
     path("push/subscribe/", push_api.SubscribeView.as_view(), name="push-subscribe"),

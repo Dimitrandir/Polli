@@ -13,7 +13,7 @@ import time
 from collections import Counter
 from dataclasses import dataclass
 
-from apps.content.models import Article
+from apps.content.models import Article, MediaArticle
 
 PASSAGE_CHARS = 1200
 INDEX_TTL_SECONDS = 600
@@ -62,9 +62,20 @@ def tokens(text):
 
 
 @dataclass
-class Passage:
-    slug: str
+class Document:
+    """Something the assistant can quote: a salon article, or an interview in another outlet."""
+
     title: str
+    url: str
+    body: str
+    source: str = ""  # the outlet and date for an outside publication; empty for the salon's own articles
+
+
+@dataclass
+class Passage:
+    title: str
+    url: str
+    source: str
     heading: str
     text: str
     terms: Counter
@@ -106,7 +117,9 @@ class ArticleIndex:
             for heading, text in split_article(article):
                 # The title and heading count twice: they say what the passage is about.
                 terms = Counter(tokens(f"{article.title} {heading} " * 2 + text))
-                self.passages.append(Passage(article.slug, article.title, heading, text, terms, sum(terms.values())))
+                self.passages.append(
+                    Passage(article.title, article.url, article.source, heading, text, terms, sum(terms.values()))
+                )
         self.avg_length = sum(p.length for p in self.passages) / len(self.passages) if self.passages else 0
         doc_freq = Counter(term for p in self.passages for term in p.terms)
         n = len(self.passages)
@@ -139,11 +152,25 @@ def clear_index():
         _index = None
 
 
+def documents():
+    docs = [
+        Document(a.title, f"/statii/{a.slug}", a.body)
+        for a in Article.objects.filter(is_published=True).only("slug", "title", "body")
+    ]
+    # Interviews in other media count only with their text and a link to cite.
+    # An interview the salon wrote up as its own article is already in the index through that article.
+    media = MediaArticle.objects.filter(is_published=True, article=None).exclude(body="").exclude(url="")
+    for m in media:
+        when = f", {m.published_on:%d.%m.%Y}" if m.published_on else ""
+        docs.append(Document(m.title, m.url, m.body, source=f"{m.outlet}{when}"))
+    return docs
+
+
 def get_index():
     global _index, _built_at
     with _lock:
         if _index is None or time.monotonic() - _built_at > INDEX_TTL_SECONDS:
-            _index = ArticleIndex(Article.objects.filter(is_published=True).only("slug", "title", "body"))
+            _index = ArticleIndex(documents())
             _built_at = time.monotonic()
         return _index
 

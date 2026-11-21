@@ -9,7 +9,7 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 
 from apps.catalog.models import Service, ServiceCategory, ServiceGroup
-from apps.content.models import Article, Page
+from apps.content.models import Article, MediaArticle, Page
 from apps.salon.models import SalonInfo
 from apps.staff.models import Specialist, SpecialistService
 
@@ -121,3 +121,31 @@ class ImportSiteContentTests(TestCase):
         self.run_import()
         Article.objects.update(is_published=False)
         self.assertEqual(APIClient().get(reverse("api:article-list")).json(), [])
+
+    def test_loads_poli_in_the_media(self):
+        self.run_import()
+        self.assertEqual(MediaArticle.objects.count(), 14)
+        # Every link to one of our own articles resolves: those interviews are already written up in /statii.
+        self.assertEqual(MediaArticle.objects.exclude(article=None).count(), 10)
+        vibes = MediaArticle.objects.get(slug="vibes-pricheskata-e-brand")
+        self.assertEqual(vibes.article.slug, "поли-ботева-във-vibes-прическата-е-истинск")
+        profit = MediaArticle.objects.get(slug="profit-izvan-klisheto")
+        self.assertIsNone(profit.article)
+        self.assertTrue(profit.body.startswith("## "))
+        self.assertEqual(str(profit.published_on), "2024-10-26")
+
+        media = APIClient().get(reverse("api:media-article-list")).json()
+        # The one that could not be found has no link and stays off the site; the notes never leave the backend.
+        self.assertEqual(len(media), 13)
+        self.assertNotIn("velikolepnatajena-parvoto-vpechatlenie", [m["slug"] for m in media])
+        self.assertNotIn("body", media[0])
+        self.assertEqual(media[0]["published_on"], "2026-04-07")  # newest first
+        self.assertEqual(media[0]["article_slug"], "поли-ботева-в-жената-днес-поддържан")
+
+    def test_media_found_later_fills_in_without_touching_admin_edits(self):
+        self.run_import()
+        MediaArticle.objects.filter(slug="profit-izvan-klisheto").update(url="", summary="Редактирано в админа")
+        self.run_import()
+        profit = MediaArticle.objects.get(slug="profit-izvan-klisheto")
+        self.assertEqual(profit.url, "https://profit.bg/article/2024102419063827405")
+        self.assertEqual(profit.summary, "Редактирано в админа")

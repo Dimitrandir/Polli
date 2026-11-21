@@ -7,7 +7,11 @@ import type { Category } from "./api";
 
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000";
 
-export type OpeningHours = { weekday: number; start_time: string; end_time: string };
+export type OpeningHours = {
+  weekday: number;
+  start_time: string;
+  end_time: string;
+};
 
 export type SalonInfo = {
   name: string;
@@ -28,7 +32,12 @@ export type TeamMember = {
   title: string;
   bio: string;
   photo: string | null;
-  services: { id: number; name: string; price: string; duration_minutes: number }[];
+  services: {
+    id: number;
+    name: string;
+    price: string;
+    duration_minutes: number;
+  }[];
 };
 
 export type ArticleSummary = {
@@ -42,7 +51,24 @@ export type ArticleSummary = {
 
 export type Article = ArticleSummary & { body: string };
 
-export type Page = { slug: string; title: string; body: string; updated_at: string };
+/** An interview or article with Poli in another outlet: the summary and the link to the original. */
+export type MediaArticle = {
+  slug: string;
+  title: string;
+  outlet: string;
+  outlet_site: string;
+  url: string;
+  published_on: string | null;
+  summary: string;
+  article_slug: string | null;
+};
+
+export type Page = {
+  slug: string;
+  title: string;
+  body: string;
+  updated_at: string;
+};
 
 /** GET a Django API path. Returns null when it is missing or the backend cannot be reached. */
 async function get<T>(path: string): Promise<T | null> {
@@ -63,7 +89,12 @@ export const content = {
   salon: () => get<SalonInfo>("salon/"),
   categories: () => get<Category[]>("categories/"),
   team: () => get<TeamMember[]>("specialists/"),
-  articles: (tag?: string) => get<ArticleSummary[]>(tag ? `articles/?tag=${encodeURIComponent(tag)}` : "articles/"),
-  article: (slug: string) => get<Article>(`articles/${encodeURIComponent(slug)}/`),
+  articles: (tag?: string) =>
+    get<ArticleSummary[]>(
+      tag ? `articles/?tag=${encodeURIComponent(tag)}` : "articles/",
+    ),
+  article: (slug: string) =>
+    get<Article>(`articles/${encodeURIComponent(slug)}/`),
+  mediaArticles: () => get<MediaArticle[]>("media-articles/"),
   page: (slug: string) => get<Page>(`pages/${encodeURIComponent(slug)}/`),
 };

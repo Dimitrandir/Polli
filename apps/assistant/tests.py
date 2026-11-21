@@ -8,12 +8,12 @@ from django.utils import timezone
 
 from apps.bookings.models import Booking
 from apps.bookings.tests.factories import SalonTestCase, at
-from apps.content.models import Article
+from apps.content.models import Article, MediaArticle
 
 from . import agent
 from .models import BookingProposal, Conversation
 from .search import search_articles, stem
-from .tools import find_free_slots_tool, list_services_tool, propose_booking_tool
+from .tools import find_free_slots_tool, list_services_tool, propose_booking_tool, search_articles_tool
 
 ASSISTANT_ON = {
     "API_KEY": "test-key",
@@ -74,14 +74,32 @@ class SearchTests(TestCase):
 
     def test_finds_the_matching_passage_with_its_heading(self):
         results = search_articles("защо имам косопад")
-        self.assertEqual(results[0].slug, "kosopad")
+        self.assertEqual(results[0].url, "/statii/kosopad")
         self.assertIn(results[0].heading, {"Причини", "Грижа"})
-        self.assertNotIn("draft", [r.slug for r in results])
+        self.assertNotIn("/statii/draft", [r.url for r in results])
 
     def test_index_follows_article_changes(self):
         self.assertEqual(search_articles("кератин"), [])
         article(title="Кератинова терапия", slug="keratin", body="Кератинът изглажда косъма.")
-        self.assertEqual(search_articles("кератин")[0].slug, "keratin")
+        self.assertEqual(search_articles("кератин")[0].url, "/statii/keratin")
+
+    def test_media_interviews_are_cited_with_the_outlet_and_original_link(self):
+        MediaArticle.objects.create(
+            title="Поддържаната коса означава здрава коса",
+            slug="jenatadnes",
+            outlet="Жената днес",
+            url="https://jenatadnes.com/poli",
+            published_on="2026-04-07",
+            body="Ламинирането на косъма запечатва кутикулата и връща блясъка.",
+        )
+        # Without text or without a link there is nothing to quote or cite.
+        MediaArticle.objects.create(title="Без текст", slug="no-text", outlet="X", url="https://x.bg/a")
+        MediaArticle.objects.create(title="Без линк", slug="no-link", outlet="Y", body="Ламиниране на коса.")
+        result = search_articles_tool({"query": "ламиниране"})["results"]
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["url"], "https://jenatadnes.com/poli")
+        self.assertIn("Жената днес, 07.04.2026", result[0]["source"])
+        self.assertNotIn("source", search_articles_tool({"query": "косопад"})["results"][0])
 
 
 class ToolTests(SalonTestCase):
