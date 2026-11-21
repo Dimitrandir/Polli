@@ -9,21 +9,36 @@ import { formatArticleDate } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Статии",
-  description: "Съвети за здрава и красива коса от колориста и трихолог Поли Ботева.",
+  description:
+    "Съвети за здрава и красива коса от колориста и трихолог Поли Ботева.",
 };
 
-export default async function ArticlesPage({ searchParams }: { searchParams: Promise<{ tag?: string }> }) {
+export default async function ArticlesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tag?: string }>;
+}) {
   const { tag } = await searchParams;
   const articles = await content.articles(tag);
   return (
     <main className="mx-auto max-w-7xl px-4 sm:px-8">
-      <PageHeader eyebrow="Статии" title={tag ? `Статии за „${tag}“` : "Грижа за косата"}>
+      <PageHeader
+        eyebrow="Статии"
+        title={tag ? `Статии за „${tag}“` : "Грижа за косата"}
+      >
         {tag ? (
           <Link href="/statii" className="text-accent hover:underline">
             Всички статии
           </Link>
         ) : (
-          "Съвети, интервюта и тенденции от нашия екип."
+          <>
+            Съвети, интервюта и тенденции от нашия екип. Интервютата с Поли в
+            други издания са в{" "}
+            <Link href="/v-mediite" className="text-accent hover:underline">
+              „В медиите“
+            </Link>
+            .
+          </>
         )}
       </PageHeader>
       {!articles ? (
@@ -57,8 +72,12 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
                 >
                   {formatArticleDate(article.published_at)}
                 </time>
-                <h2 className="mt-3 font-display text-2xl font-semibold leading-tight text-ink">{article.title}</h2>
-                <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-ink-soft">{article.excerpt}</p>
+                <h2 className="mt-3 font-display text-2xl font-semibold leading-tight text-ink">
+                  {article.title}
+                </h2>
+                <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-ink-soft">
+                  {article.excerpt}
+                </p>
               </div>
             </Link>
           ))}

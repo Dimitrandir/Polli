@@ -1,6 +1,6 @@
 from rest_framework import generics, serializers
 
-from .models import Article, Page
+from .models import Article, MediaArticle, Page
 
 ARTICLE_LIST_FIELDS = ["slug", "title", "excerpt", "cover_image_url", "tags", "published_at"]
 
@@ -47,3 +47,23 @@ class PageDetailView(generics.RetrieveAPIView):
     serializer_class = PageSerializer
     queryset = Page.objects.filter(is_published=True)
     lookup_field = "slug"
+
+
+class MediaArticleSerializer(serializers.ModelSerializer):
+    article_slug = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MediaArticle
+        fields = ["slug", "title", "outlet", "outlet_site", "url", "published_on", "summary", "article_slug"]
+
+    def get_article_slug(self, obj):
+        return obj.article.slug if obj.article and obj.article.is_published else None
+
+
+class MediaArticleListView(generics.ListAPIView):
+    """Interviews and articles in other media, newest first. Only the summary and the link: the full text stays
+    with the assistant."""
+
+    serializer_class = MediaArticleSerializer
+    pagination_class = None
+    queryset = MediaArticle.objects.filter(is_published=True).exclude(url="").select_related("article")

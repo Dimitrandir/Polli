@@ -55,8 +55,9 @@ _PARALLEL = {
 TOOLS = [
     {
         "name": "search_articles",
-        "description": "Full-text search in the salon's own articles about hair care, colouring, scalp and hair "
-        "loss, treatments and products. Returns the best matching passages with the article title and link. "
+        "description": "Full-text search in the salon's own articles, and in interviews and articles by Poli Boteva "
+        "published by other Bulgarian media, about hair care, colouring, scalp and hair loss, treatments and "
+        "products. Returns the best matching passages with the title and link (and the outlet for other media). "
         "Use it for every question about hair or beauty advice, and answer only from what it returns. Search "
         "with the key words of the question in Bulgarian; search again with other words if nothing fits.",
         "input_schema": {
@@ -193,7 +194,8 @@ def search_articles_tool(tool_input, **_):
         "results": [
             {
                 "title": p.title,
-                "url": f"/statii/{p.slug}",
+                "url": p.url,
+                **({"source": f"Интервю/статия в {p.source} (външен сайт)"} if p.source else {}),
                 "section": p.heading,
                 "text": p.text[:PASSAGE_PREVIEW_CHARS],
             }

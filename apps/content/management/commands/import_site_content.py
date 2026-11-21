@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, time
+from datetime import date, datetime, time
 from decimal import Decimal
 from pathlib import Path
 
@@ -10,11 +10,13 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.catalog.models import Service, ServiceCategory, ServiceGroup
-from apps.content.models import Article, Page
+from apps.content.models import Article, MediaArticle, Page
 from apps.salon.models import OpeningHours, SalonInfo
 from apps.staff.models import Specialist, SpecialistService, WorkingHours
 
 DEFAULT_DATA_DIR = Path(settings.BASE_DIR) / "data" / "old-site"
+DEFAULT_MEDIA_DIR = Path(settings.BASE_DIR) / "data" / "press"
+MEDIA_TEXT_FIELDS = ["url", "summary", "body", "article"]
 
 
 def read_markdown(path):
@@ -35,6 +37,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR, help="Папка с данните.")
+        parser.add_argument("--media-dir", type=Path, default=DEFAULT_MEDIA_DIR, help="Папка с публикациите в медиите.")
         parser.add_argument(
             "--overwrite",
             action="store_true",
@@ -42,7 +45,7 @@ class Command(BaseCommand):
         )
 
     @transaction.atomic
-    def handle(self, *args, data_dir, overwrite, **options):
+    def handle(self, *args, data_dir, media_dir, overwrite, **options):
         if not (data_dir / "catalog.json").exists():
             raise CommandError(f"Няма данни в {data_dir}.")
         self.data_dir = data_dir
@@ -57,6 +60,7 @@ class Command(BaseCommand):
         self.load_salon(json.loads((data_dir / "salon.json").read_text(encoding="utf-8")))
         self.load_articles()
         self.load_pages()
+        self.load_media_articles(media_dir)
 
         for label in {**self.created, **self.updated}:
             self.stdout.write(f"{label}: нови {self.created.get(label, 0)}, обновени {self.updated.get(label, 0)}")
@@ -187,3 +191,32 @@ class Command(BaseCommand):
                 {"slug": meta["slug"]},
                 {"title": meta["title"], "body": body, "source_url": meta["source_url"]},
             )
+
+    def load_media_articles(self, media_dir):
+        if not media_dir.is_dir():
+            return
+        label = str(MediaArticle._meta.verbose_name_plural)
+        for path in sorted(media_dir.glob("*.md")):
+            if path.name == "README.md":
+                continue
+            meta, body = read_markdown(path)
+            values = {
+                "title": meta["title"],
+                "outlet": meta["outlet"],
+                "outlet_site": meta.get("outlet_site", ""),
+                "url": meta.get("url", ""),
+                "published_on": date.fromisoformat(meta["published_on"]) if meta.get("published_on") else None,
+                "summary": meta.get("summary", ""),
+                "body": body,
+                "article": Article.objects.filter(slug=meta.get("article_slug") or None).first(),
+            }
+            article = self.upsert(MediaArticle, {"slug": meta["slug"]}, values)
+            if self.overwrite:
+                continue
+            # A link, summary or text found later fills in what is still empty, without touching admin edits.
+            missing = [f for f in MEDIA_TEXT_FIELDS if values[f] and not getattr(article, f)]
+            if missing:
+                for field in missing:
+                    setattr(article, field, values[field])
+                article.save(update_fields=missing)
+                self.updated[label] = self.updated.get(label, 0) + 1
