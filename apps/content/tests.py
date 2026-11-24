@@ -135,9 +135,12 @@ class ImportSiteContentTests(TestCase):
         self.assertEqual(str(profit.published_on), "2024-10-26")
 
         media = APIClient().get(reverse("api:media-article-list")).json()
-        # The one that could not be found has no link and stays off the site; the notes never leave the backend.
-        self.assertEqual(len(media), 13)
-        self.assertNotIn("velikolepnatajena-parvoto-vpechatlenie", [m["slug"] for m in media])
+        self.assertEqual(len(media), 14)
+        # A publication without a link stays off the site; the notes never leave the backend.
+        MediaArticle.objects.filter(slug="profit-izvan-klisheto").update(url="")
+        slugs = [m["slug"] for m in APIClient().get(reverse("api:media-article-list")).json()]
+        self.assertEqual(len(slugs), 13)
+        self.assertNotIn("profit-izvan-klisheto", slugs)
         self.assertNotIn("body", media[0])
         self.assertEqual(media[0]["published_on"], "2026-04-07")  # newest first
         self.assertEqual(media[0]["article_slug"], "поли-ботева-в-жената-днес-поддържан")
