@@ -54,7 +54,17 @@ class MediaArticleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MediaArticle
-        fields = ["slug", "title", "outlet", "outlet_site", "url", "published_on", "summary", "article_slug"]
+        fields = [
+            "slug",
+            "title",
+            "outlet",
+            "outlet_site",
+            "url",
+            "published_on",
+            "summary",
+            "cover_image_url",
+            "article_slug",
+        ]
 
     def get_article_slug(self, obj):
         return obj.article.slug if obj.article and obj.article.is_published else None

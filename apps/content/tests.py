@@ -133,6 +133,7 @@ class ImportSiteContentTests(TestCase):
         self.assertIsNone(profit.article)
         self.assertTrue(profit.body.startswith("## "))
         self.assertEqual(str(profit.published_on), "2024-10-26")
+        self.assertEqual(profit.cover_image_url, "/press/profit.jpg")
 
         media = APIClient().get(reverse("api:media-article-list")).json()
         self.assertEqual(len(media), 14)
