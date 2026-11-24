@@ -7,7 +7,8 @@
   "url": "https://profit.bg/article/2024102419063827405",
   "published_on": "2024-10-26",
   "summary": "Бизнес история: как Поли започва със заем от 250 лева и стига до собствен салон, защо залага на качеството, оригиналната козметика и обучението, и какво съветва колегите си.",
-  "cover_image_url": "/press/profit.jpg"
+  "cover_image_url": "/press/profit.jpg",
+  "article_slug": "poli-boteva-profit-izvan-klisheto"
 }
 ---
 
