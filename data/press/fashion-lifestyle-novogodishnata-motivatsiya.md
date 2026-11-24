@@ -6,7 +6,8 @@
   "outlet_site": "fashion-lifestyle.bg",
   "url": "https://www.fashion-lifestyle.bg/culture/interview/poli-boteva-novogodishnata-motivacziya-ryadko-e-dostatachna-za-realna-promyana/",
   "published_on": "2026-01-09",
-  "summary": "Защо новогодишната еуфория рядко води до трайна промяна, как Поли различава импулса от истинското желание за нова визия и кой навик най-много помага на косата."
+  "summary": "Защо новогодишната еуфория рядко води до трайна промяна, как Поли различава импулса от истинското желание за нова визия и кой навик най-много помага на косата.",
+  "cover_image_url": "/press/fashion-lifestyle.jpg"
 }
 ---
 

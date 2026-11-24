@@ -16,7 +16,7 @@ from apps.staff.models import Specialist, SpecialistService, WorkingHours
 
 DEFAULT_DATA_DIR = Path(settings.BASE_DIR) / "data" / "old-site"
 DEFAULT_MEDIA_DIR = Path(settings.BASE_DIR) / "data" / "press"
-MEDIA_TEXT_FIELDS = ["url", "summary", "article"]
+MEDIA_TEXT_FIELDS = ["url", "summary", "cover_image_url", "article"]
 
 
 def read_markdown(path):
@@ -207,6 +207,7 @@ class Command(BaseCommand):
                 "url": meta.get("url", ""),
                 "published_on": date.fromisoformat(meta["published_on"]) if meta.get("published_on") else None,
                 "summary": meta.get("summary", ""),
+                "cover_image_url": meta.get("cover_image_url", ""),
                 "body": body,
                 "article": Article.objects.filter(slug=meta.get("article_slug") or None).first(),
             }

@@ -6,7 +6,8 @@
   "outlet_site": "velikolepnatajena.bg",
   "url": "https://velikolepnatajena.bg/lifestyle/tpost/mogkdsnfv1-kosata-formira-blizo-70-ot-prvoto-vpecha",
   "published_on": "2026-01-08",
-  "summary": "Косата като част от личния бранд: как да изберем прическа, която се поддържа лесно, личните навици на Поли в натоварените дни и бързи съвети за здрава коса без сложни процедури."
+  "summary": "Косата като част от личния бранд: как да изберем прическа, която се поддържа лесно, личните навици на Поли в натоварените дни и бързи съвети за здрава коса без сложни процедури.",
+  "cover_image_url": "/press/velikolepnata-zhena.jpg"
 }
 ---
 

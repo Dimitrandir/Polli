@@ -67,6 +67,12 @@ class MediaArticle(models.Model):
         help_text="Наша статия за същата публикация, ако има. Тогава асистентът ползва нея.",
     )
     published_on = models.DateField("дата на публикуване", null=True, blank=True)
+    cover_image_url = models.CharField(
+        "основна снимка",
+        max_length=500,
+        blank=True,
+        help_text="Адрес на снимката за картата в „Статии“, например /press/profit.jpg.",
+    )
     summary = models.TextField("кратко резюме", blank=True, help_text="Показва се в сайта. Със свои думи, не копие.")
     body = models.TextField(
         "бележки за асистента (Markdown)",

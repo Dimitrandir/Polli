@@ -60,6 +60,7 @@ export type MediaArticle = {
   url: string;
   published_on: string | null;
   summary: string;
+  cover_image_url: string;
   article_slug: string | null;
 };
 
