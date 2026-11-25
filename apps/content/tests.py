@@ -39,7 +39,7 @@ class ImportSiteContentTests(TestCase):
 
     def test_loads_the_whole_site(self):
         self.run_import()
-        self.assertEqual(self.counts(), [2, 9, 67, 3, 103, 35, 3, 1])
+        self.assertEqual(self.counts(), [2, 9, 67, 3, 103, 40, 3, 1])
 
         poli = Specialist.objects.get(name="Павлинка Ботева")
         self.assertEqual(poli.title, "Колорист, трихолог")
@@ -66,11 +66,11 @@ class ImportSiteContentTests(TestCase):
         self.run_import()
         Service.objects.filter(name="Мъжко подстригване").update(price=Decimal("25.00"))
         self.run_import()
-        self.assertEqual(self.counts(), [2, 9, 67, 3, 103, 35, 3, 1])
+        self.assertEqual(self.counts(), [2, 9, 67, 3, 103, 40, 3, 1])
         self.assertEqual(Service.objects.get(name="Мъжко подстригване").price, Decimal("25.00"))
 
         self.run_import("--overwrite")
-        self.assertEqual(self.counts(), [2, 9, 67, 3, 103, 35, 3, 1])
+        self.assertEqual(self.counts(), [2, 9, 67, 3, 103, 40, 3, 1])
         self.assertEqual(Service.objects.get(name="Мъжко подстригване").price, Decimal("20.00"))
         self.assertEqual(SalonInfo.load().opening_hours.count(), 6)
 
@@ -100,7 +100,7 @@ class ImportSiteContentTests(TestCase):
         self.assertEqual(salon["opening_hours"][5], {"weekday": 5, "start_time": "10:00", "end_time": "17:00"})
 
         articles = api.get(reverse("api:article-list")).json()
-        self.assertEqual(len(articles), 35)
+        self.assertEqual(len(articles), 40)
         self.assertNotIn("body", articles[0])
         self.assertGreaterEqual(articles[0]["published_at"], articles[-1]["published_at"])
 
@@ -124,9 +124,9 @@ class ImportSiteContentTests(TestCase):
 
     def test_loads_poli_in_the_media(self):
         self.run_import()
-        self.assertEqual(MediaArticle.objects.count(), 14)
+        self.assertEqual(MediaArticle.objects.count(), 19)
         # Every link to one of our own articles resolves: those interviews are already written up in /statii.
-        self.assertEqual(MediaArticle.objects.exclude(article=None).count(), 14)
+        self.assertEqual(MediaArticle.objects.exclude(article=None).count(), 19)
         vibes = MediaArticle.objects.get(slug="vibes-pricheskata-e-brand")
         self.assertEqual(vibes.article.slug, "поли-ботева-във-vibes-прическата-е-истинск")
         profit = MediaArticle.objects.get(slug="profit-izvan-klisheto")
@@ -136,15 +136,15 @@ class ImportSiteContentTests(TestCase):
         self.assertEqual(profit.cover_image_url, "/press/profit.jpg")
 
         media = APIClient().get(reverse("api:media-article-list")).json()
-        self.assertEqual(len(media), 14)
+        self.assertEqual(len(media), 19)
         # A publication without a link stays off the site; the notes never leave the backend.
         MediaArticle.objects.filter(slug="profit-izvan-klisheto").update(url="")
         slugs = [m["slug"] for m in APIClient().get(reverse("api:media-article-list")).json()]
-        self.assertEqual(len(slugs), 13)
+        self.assertEqual(len(slugs), 18)
         self.assertNotIn("profit-izvan-klisheto", slugs)
         self.assertNotIn("body", media[0])
-        self.assertEqual(media[0]["published_on"], "2026-04-07")  # newest first
-        self.assertEqual(media[0]["article_slug"], "поли-ботева-в-жената-днес-поддържан")
+        self.assertEqual(media[0]["published_on"], "2026-10-08")  # newest first
+        self.assertEqual(media[0]["article_slug"], "poli-boteva-inews-maska-ili-balsam")
 
     def test_media_found_later_fills_in_without_touching_admin_edits(self):
         self.run_import()
