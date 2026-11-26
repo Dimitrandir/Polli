@@ -169,19 +169,26 @@ class Command(BaseCommand):
             published_at = datetime.fromisoformat(meta["published_at"])
             if timezone.is_naive(published_at):
                 published_at = timezone.make_aware(published_at)
-            self.upsert(
-                Article,
-                {"slug": meta["slug"]},
-                {
-                    "title": meta["title"],
-                    "excerpt": meta["excerpt"],
-                    "body": body,
-                    "cover_image_url": meta["cover_image_url"],
-                    "tags": meta["tags"],
-                    "published_at": published_at,
-                    "source_url": meta["source_url"],
-                },
-            )
+            values = {
+                "title": meta["title"],
+                "excerpt": meta["excerpt"],
+                "body": body,
+                "cover_image_url": meta["cover_image_url"],
+                "tags": meta["tags"],
+                "published_at": published_at,
+                "source_url": meta["source_url"],
+            }
+            article = self.upsert(Article, {"slug": meta["slug"]}, values)
+            # "sync": true in the header keeps the text in step with the file on every run, without --overwrite
+            # (e.g. a summary later replaced by the full text the author sent).
+            if meta.get("sync") and not self.overwrite:
+                changed = [f for f in ("title", "excerpt", "body") if getattr(article, f) != values[f]]
+                if changed:
+                    for field in changed:
+                        setattr(article, field, values[field])
+                    article.save(update_fields=changed)
+                    label = str(Article._meta.verbose_name_plural)
+                    self.updated[label] = self.updated.get(label, 0) + 1
 
     def load_pages(self):
         for path in sorted((self.data_dir / "pages").glob("*.md")):

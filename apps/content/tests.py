@@ -117,6 +117,20 @@ class ImportSiteContentTests(TestCase):
         self.assertEqual([s["name"] for s in team], ["Павлинка Ботева", "Радослав Матев", "Бела Тодорова"])
         self.assertIn("/media/specialists/", team[0]["photo"])
 
+    def test_full_text_from_the_author_replaces_the_summary_on_rerun(self):
+        self.run_import()
+        # An article marked "sync" follows its file: the server picks up the full text without --overwrite.
+        Article.objects.filter(slug="poli-boteva-fitwell-omaznyavane-prez-lyatoto").update(body="кратък преразказ")
+        Article.objects.filter(slug="8-ekspertni-nachina-za-zashtita-na-kosata-ot-presa-masha-seshoar").update(
+            body="редакция в админа"
+        )
+        self.run_import()
+        fitwell = Article.objects.get(slug="poli-boteva-fitwell-omaznyavane-prez-lyatoto")
+        self.assertIn("Остани със здрава и красива коса", fitwell.body)
+        # Articles without the flag keep what was edited in the admin.
+        plain = Article.objects.get(slug="8-ekspertni-nachina-za-zashtita-na-kosata-ot-presa-masha-seshoar")
+        self.assertEqual(plain.body, "редакция в админа")
+
     def test_unpublished_article_is_hidden(self):
         self.run_import()
         Article.objects.update(is_published=False)
