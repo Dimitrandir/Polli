@@ -23,6 +23,8 @@ export type GridColumn = {
   /** Title in the specialist's colour (day view) or plain with a highlight for today (week view). */
   titleStyle: "color" | "plain";
   highlight?: boolean;
+  /** A short note under the title, e.g. "без онлайн записване". */
+  badge?: string;
   working: Interval[];
   timeOff: TimeOff[];
   blocks: Block[];
@@ -205,9 +207,14 @@ export function TimeGrid({
                   : "border-neutral-200 bg-white text-neutral-800"
             }`}
             style={c.titleStyle === "color" ? { background: c.color } : undefined}
-            title={c.title}
+            title={c.badge ? `${c.title} · ${c.badge}` : c.title}
           >
             {c.title}
+            {c.badge && (
+              <span className="mx-auto mt-0.5 block w-fit max-w-full truncate rounded bg-red-600 px-1.5 text-[10px] leading-4 font-semibold text-white">
+                {c.badge}
+              </span>
+            )}
           </div>
         );
       })}

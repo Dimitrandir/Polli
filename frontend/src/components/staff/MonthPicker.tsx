@@ -7,7 +7,7 @@ import { specialistColor } from "@/lib/calendar";
 import { addDays, startOfWeek, todayKey } from "@/lib/format";
 import { staffApi, type MonthLoad } from "@/lib/staff-api";
 
-const MONTHS = [
+export const MONTHS = [
   "януари",
   "февруари",
   "март",
@@ -21,13 +21,13 @@ const MONTHS = [
   "ноември",
   "декември",
 ];
-const WEEKDAYS = ["П", "В", "С", "Ч", "П", "С", "Н"];
+export const WEEKDAYS = ["П", "В", "С", "Ч", "П", "С", "Н"];
 
-function monthKey(date: string) {
+export function monthKey(date: string) {
   return `${date.slice(0, 7)}-01`;
 }
 
-function shiftMonth(key: string, by: number) {
+export function shiftMonth(key: string, by: number) {
   const [y, m] = key.split("-").map(Number);
   const d = new Date(Date.UTC(y, m - 1 + by, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
@@ -50,12 +50,15 @@ export function MonthPicker({
   onPick,
   onClose,
   inline = false,
+  version = 0,
 }: {
   value: string;
   onPick: (date: string) => void;
   onClose: () => void;
   /** In the side panel on a tablet: always open, follows the shown day, no backdrop. */
   inline?: boolean;
+  /** Changes when something shown here changed elsewhere (days without online booking): reload. */
+  version?: number;
 }) {
   const [month, setMonth] = useState(monthKey(value));
   const shownMonth = monthKey(value);
@@ -77,7 +80,7 @@ export function MonthPicker({
     return () => {
       stale = true;
     };
-  }, [month]);
+  }, [month, version]);
 
   const days = useMemo(() => monthGrid(month), [month]);
   const specialists = load && load.month === month ? load.specialists : [];
@@ -122,16 +125,29 @@ export function MonthPicker({
             const inMonth = day.slice(0, 7) === month.slice(0, 7);
             const loads = load?.days[day] ?? {};
             const selected = day === value;
+            const closed = inMonth ? load?.online_blocks?.[day] : undefined;
+            const closedLabel =
+              closed === "salon"
+                ? "без онлайн записване"
+                : closed?.length
+                  ? `без онлайн записване: ${specialists
+                      .filter((s) => closed.includes(s.id))
+                      .map((s) => s.name)
+                      .join(", ")}`
+                  : "";
             return (
               <button
                 key={day}
                 onClick={() => onPick(day)}
-                aria-label={day}
+                aria-label={closedLabel ? `${day}, ${closedLabel}` : day}
+                title={closedLabel || undefined}
                 aria-pressed={selected}
                 className="flex h-14 flex-col items-center gap-1 border-b border-r border-neutral-100 pt-1 last:border-r-0"
               >
                 <span
                   className={`flex h-8 w-8 items-center justify-center rounded-full text-base ${
+                    closed === "salon" ? "ring-2 ring-red-500" : closedLabel ? "ring-2 ring-red-300" : ""
+                  } ${
                     selected
                       ? "bg-[var(--staff)] font-bold text-white"
                       : day === today

@@ -1,7 +1,10 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.staff.models import Weekday
+
+DEFAULT_ONLINE_BLOCK_MESSAGE = "В този ден може да резервирате час само по телефона!"
 
 
 class SalonInfo(models.Model):
@@ -40,6 +43,12 @@ class SalonInfo(models.Model):
         default=False,
         help_text="Служителите, които не са администратори, не виждат телефоните на клиентите в календара.",
     )
+    online_block_message = models.CharField(
+        "текст за дни без онлайн записване",
+        max_length=255,
+        blank=True,
+        help_text=f"Какво виждат клиентите в блокиран ден. Празно = „{DEFAULT_ONLINE_BLOCK_MESSAGE}“",
+    )
 
     class Meta:
         verbose_name = "информация за салона"
@@ -73,3 +82,56 @@ class OpeningHours(models.Model):
         super().clean()
         if self.start_time and self.end_time and self.end_time <= self.start_time:
             raise ValidationError({"end_time": "Краят трябва да е след началото."})
+
+
+class OnlineBlock(models.Model):
+    """A day on which clients cannot book online (the website and the AI assistant).
+
+    Without a specialist the whole salon is closed for online booking; with one, only that
+    specialist. The team still books from the calendar and the visits already booked stay.
+    """
+
+    date = models.DateField("дата", db_index=True)
+    specialist = models.ForeignKey(
+        "staff.Specialist",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="online_blocks",
+        verbose_name="специалист",
+        help_text="Празно = целият салон.",
+    )
+    message = models.CharField(
+        "текст за клиентите",
+        max_length=255,
+        blank=True,
+        help_text="Празно = текстът от настройките.",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        verbose_name="блокиран от",
+    )
+    created_at = models.DateTimeField("създаден", auto_now_add=True)
+
+    class Meta:
+        ordering = ["date", "specialist__order", "specialist__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["date", "specialist"],
+                condition=models.Q(specialist__isnull=False),
+                name="unique_online_block_specialist",
+            ),
+            models.UniqueConstraint(
+                fields=["date"], condition=models.Q(specialist__isnull=True), name="unique_online_block_salon"
+            ),
+        ]
+        verbose_name = "ден без онлайн записване"
+        verbose_name_plural = "дни без онлайн записване"
+
+    def __str__(self):
+        who = self.specialist.name if self.specialist_id else "целият салон"
+        return f"{self.date:%d.%m.%Y} – {who}"

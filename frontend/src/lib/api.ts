@@ -32,8 +32,18 @@ export type PlannedItem = {
 };
 
 export type Slot = { start: string; end: string; total_price: string; items: PlannedItem[] };
-export type AvailabilityDay = { date: string; slots: Slot[] };
-export type Availability = { timezone: string; days: AvailabilityDay[] };
+export type AvailabilityDay = {
+  date: string;
+  slots: Slot[];
+  /** The salon's text when this day cannot be booked online (only by phone); null otherwise. */
+  blocked?: string | null;
+};
+export type Availability = {
+  timezone: string;
+  /** The salon's phone, for the call button on a day closed for online booking. */
+  phone?: string;
+  days: AvailabilityDay[];
+};
 
 export type BookingItem = {
   service: number;

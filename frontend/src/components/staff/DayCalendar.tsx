@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Columns3,
   Menu,
+  PhoneOff,
   Plus,
   RefreshCw,
   Users,
@@ -43,6 +44,7 @@ import {
 import { BookingSheet } from "./BookingSheet";
 import { MonthPicker } from "./MonthPicker";
 import { NewBookingSheet, type NewBookingDraft } from "./NewBookingSheet";
+import { OnlineDaySheet } from "./OnlineBlocks";
 import { MenuItem, MessagesBubble, SectionLinks, useUnread } from "./StaffNav";
 import { PX, TimeGrid, type GridColumn } from "./TimeGrid";
 import { TimeOffSheet } from "./TimeOffSheet";
@@ -52,6 +54,8 @@ const REFRESH_MS = 60_000;
 const WIDE = "(min-width: 768px)";
 const SIDE_KEY = "staff.sidePanel";
 const HIDDEN_KEY = "staff.hiddenColumns";
+/** Under a column title when that specialist (or the salon) is closed for online booking that day. */
+const NO_ONLINE = "без онлайн";
 
 function readStored<T>(key: string, fallback: T): T {
   try {
@@ -116,6 +120,9 @@ export function DayCalendar({
     column: GridColumn;
   } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [onlineOpen, setOnlineOpen] = useState(false);
+  /** Bumped after a change to the days without online booking, so the month picker reloads. */
+  const [blocksVersion, setBlocksVersion] = useState(0);
   const [monthOpen, setMonthOpen] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
   const [hidden, setHidden] = useState<number[]>([]);
@@ -225,6 +232,7 @@ export function DayCalendar({
     if (!current) return [];
     if (current.kind === "day") {
       const { data } = current;
+      const closed = data.online_blocks;
       const visible = data.specialists.filter((s) => !hidden.includes(s.id));
       // Never an empty calendar: if everyone is hidden (e.g. after a colleague left), show everyone.
       const shown = visible.length ? visible : data.specialists;
@@ -235,6 +243,7 @@ export function DayCalendar({
         title: s.name,
         color: colorOf(s.id),
         titleStyle: "color" as const,
+        badge: closed && (closed.salon || closed.specialists[String(s.id)]) ? NO_ONLINE : undefined,
         working: s.working,
         timeOff: s.time_off,
         blocks: columnBlocks(data.bookings, data.date, s.id),
@@ -253,6 +262,7 @@ export function DayCalendar({
         color: colorOf(specialist),
         titleStyle: "plain" as const,
         highlight: d.date === now.date,
+        badge: d.online_blocked ? NO_ONLINE : undefined,
         working: d.working,
         timeOff: d.time_off,
         blocks: columnBlocks(data.bookings, d.date, specialist),
@@ -347,6 +357,15 @@ export function DayCalendar({
     setMonthOpen(false);
   }
 
+  // Day view: who cannot be booked online today (the whole salon or some specialists).
+  const closedNote = (() => {
+    if (current?.kind !== "day" || !current.data.online_blocks) return null;
+    const { salon, specialists: closedIds } = current.data.online_blocks;
+    if (salon) return "Без онлайн записване за целия салон (само по телефона)";
+    const names = specialists.filter((s) => closedIds[String(s.id)]).map((s) => s.name);
+    return names.length ? `Без онлайн записване: ${names.join(", ")}` : null;
+  })();
+
   const today = now.date;
   const onToday = view === "week" ? today >= monday && today <= addDays(monday, 6) : date === today;
   const hiddenNow = specialists.filter((s) => hidden.includes(s.id)).length;
@@ -367,7 +386,13 @@ export function DayCalendar({
               <X size={22} />
             </button>
           </div>
-          <MonthPicker inline value={date} onPick={pickDate} onClose={() => toggleSide(false)} />
+          <MonthPicker
+            inline
+            value={date}
+            version={blocksVersion}
+            onPick={pickDate}
+            onClose={() => toggleSide(false)}
+          />
         </aside>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
@@ -393,7 +418,9 @@ export function DayCalendar({
             </span>
             <span className="text-sm opacity-90">{subtitle}</span>
           </button>
-          {monthOpen && <MonthPicker value={date} onPick={pickDate} onClose={() => setMonthOpen(false)} />}
+          {monthOpen && (
+            <MonthPicker value={date} version={blocksVersion} onPick={pickDate} onClose={() => setMonthOpen(false)} />
+          )}
           <div className="mx-auto flex items-center gap-1">
             <button
               aria-label={view === "week" ? "Предишна седмица" : "Предишен ден"}
@@ -491,6 +518,14 @@ export function DayCalendar({
                 }}
               />
               <MenuItem
+                icon={<PhoneOff size={18} />}
+                label="Без онлайн записване (този ден)"
+                onClick={() => {
+                  setOnlineOpen(true);
+                  setMenuOpen(false);
+                }}
+              />
+              <MenuItem
                 icon={<RefreshCw size={18} />}
                 label="Обнови"
                 onClick={() => {
@@ -540,6 +575,17 @@ export function DayCalendar({
               <X size={18} />
             </button>
           </div>
+        )}
+
+        {closedNote && (
+          <button
+            onClick={() => setOnlineOpen(true)}
+            className="flex shrink-0 items-center gap-2 bg-red-50 px-4 py-2 text-left text-sm text-red-800"
+          >
+            <PhoneOff size={16} className="shrink-0" />
+            <span className="flex-1">{closedNote}</span>
+            <span className="text-xs font-semibold underline">Промени</span>
+          </button>
         )}
 
         {error && <p className="bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
@@ -592,6 +638,16 @@ export function DayCalendar({
           onClose={() => setDraft(null)}
           onCreated={() => {
             setPending(null);
+            void load();
+          }}
+        />
+      )}
+      {onlineOpen && (
+        <OnlineDaySheet
+          date={date}
+          onClose={() => setOnlineOpen(false)}
+          onChanged={() => {
+            setBlocksVersion((v) => v + 1);
             void load();
           }}
         />

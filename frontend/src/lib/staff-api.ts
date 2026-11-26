@@ -72,6 +72,29 @@ export type MonthLoad = {
   specialists: StaffSpecialist[];
   /** date -> specialist id -> 0 (free) … 1 (full). A specialist missing on a day does not work then. */
   days: Record<string, Record<string, number>>;
+  /** date -> "salon" (whole salon) or the specialists closed for online booking that day. */
+  online_blocks?: Record<string, "salon" | number[]>;
+};
+
+/** A day without online booking: for the whole salon (specialist null) or one specialist. */
+export type OnlineBlock = { id: number; date: string; specialist: number | null; message: string };
+
+export type OnlineBlocks = {
+  from: string;
+  to: string;
+  /** The text clients see when a day has no text of its own. */
+  default_message: string;
+  can_block_salon: boolean;
+  specialists: { id: number; name: string; can_manage: boolean }[];
+  blocks: OnlineBlock[];
+};
+
+export type OnlineBlockChange = { dates: string[]; specialist: number | null; blocked: boolean; message?: string };
+
+/** The day calendar's view of who cannot be booked online that day. */
+export type DayOnlineBlocks = {
+  salon: { id: number; message: string } | null;
+  specialists: Record<string, { id: number; message: string }>;
 };
 
 export type Hours = { weekday: number; start: string; end: string };
@@ -138,6 +161,9 @@ export type SalonSettings = {
   cancellation_hours: number;
   /** Only administrators see clients' phones. */
   hide_client_phones: boolean;
+  /** What clients see on a day without online booking. */
+  online_block_message: string;
+  default_online_block_message: string;
   defaults: { max_days_ahead: number; min_notice_minutes: number; cancellation_hours: number };
   opening_hours: Hours[];
 };
@@ -156,6 +182,7 @@ export type ClientChanges = Partial<{
 export type DaySchedule = {
   date: string;
   timezone: string;
+  online_blocks?: DayOnlineBlocks;
   specialists: DaySpecialist[];
   bookings: StaffBooking[];
 };
@@ -166,7 +193,7 @@ export type WeekSchedule = {
   timezone: string;
   specialist: number | null;
   specialists: StaffSpecialist[];
-  days: { date: string; working: Interval[]; time_off: TimeOff[] }[];
+  days: { date: string; working: Interval[]; time_off: TimeOff[]; online_blocked?: boolean }[];
   bookings: StaffBooking[];
 };
 
@@ -285,8 +312,13 @@ export const staffApi = {
   updateGroup: (id: number, changes: { name?: string; is_active?: boolean }) =>
     request<CatalogGroup>(`/staff/catalog/groups/${id}`, json("PATCH", changes)),
   settings: () => request<SalonSettings>("/staff/settings"),
-  updateSettings: (changes: Partial<Omit<SalonSettings, "defaults">>) =>
+  updateSettings: (changes: Partial<Omit<SalonSettings, "defaults" | "default_online_block_message">>) =>
     request<SalonSettings>("/staff/settings", json("PATCH", changes)),
+  onlineBlocks: (from: string, to: string) =>
+    request<OnlineBlocks>(`/staff/online-blocks?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  /** Close (blocked) or reopen days for online booking; specialist null = the whole salon (administrators). */
+  setOnlineBlocks: (change: OnlineBlockChange) =>
+    request<{ blocks: OnlineBlock[] }>("/staff/online-blocks", json("POST", change)),
   addNote: (clientId: number, text: string) =>
     request<ClientNote>(`/staff/clients/${clientId}/notes`, json("POST", { text })),
   updateNote: (id: number, text: string) => request<ClientNote>(`/staff/notes/${id}`, json("PATCH", { text })),

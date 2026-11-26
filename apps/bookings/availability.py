@@ -8,7 +8,9 @@ Free start times are computed per specialist, not as fixed slots:
     together and must be done by different specialists
     (e.g. gel manicure and root colouring at the same time);
   * shared resources (a wash basin, a manicure table) limit how many services that need
-    them can run at once.
+    them can run at once;
+  * online (not for the team), days the salon or a specialist closed for online booking are
+    left out (apps.salon.blocks).
 """
 
 from dataclasses import dataclass, field
@@ -19,6 +21,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 from apps.catalog.models import Service
+from apps.salon.blocks import DayBlocks, blocks_between, default_message
 from apps.salon.rules import booking_rule
 from apps.staff.models import Resource, Specialist, SpecialistService, TimeOff
 from apps.staff.schedule import aware, working_intervals
@@ -133,6 +136,8 @@ class AvailabilityEngine:
             req.service.pk: [r.id for r in req.service.resources.all() if r.id in self.resources]
             for req in self.requests
         }
+        self._blocks = {}
+        self._block_text = None
 
     # --- setup ---------------------------------------------------------------
 
@@ -174,6 +179,10 @@ class AvailabilityEngine:
         data = _Day()
 
         working = working_intervals(ids, day, self.tz)
+        blocks = self._day_blocks(day)
+        for sid in ids:
+            if blocks.is_blocked(sid):
+                working[sid] = []
 
         busy = {sid: [] for sid in ids}
         for off in TimeOff.objects.filter(specialist_id__in=ids, start__lt=day_end, end__gt=day_start):
@@ -205,6 +214,41 @@ class AvailabilityEngine:
                     if r.id in data.resource_busy:
                         data.resource_busy[r.id].append((item.start_at, item.busy_until))
         return data
+
+    # --- days without online booking ------------------------------------------
+
+    def _prefetch_blocks(self, first, last):
+        if self.for_staff:
+            return
+        found = blocks_between(first, last)
+        day = first
+        while day <= last:
+            self._blocks[day] = found.get(day, DayBlocks())
+            day += timedelta(days=1)
+
+    def _day_blocks(self, day):
+        if self.for_staff:
+            return DayBlocks()
+        if day not in self._blocks:
+            self._prefetch_blocks(day, day)
+        return self._blocks[day]
+
+    def blocked_message(self, day):
+        """What to tell a client when this request cannot be booked online on `day` at all, else None.
+
+        A day is closed when the whole salon is, or when every specialist who could do one of the
+        services is. The team (for_staff) is never stopped.
+        """
+        blocks = self._day_blocks(day)
+        if blocks.salon is None and not blocks.specialists:
+            return None
+        if self._block_text is None:
+            self._block_text = default_message()
+        for cands in self.candidates:
+            message = blocks.message_for([ss.specialist_id for ss in cands], self._block_text)
+            if message:
+                return message
+        return None
 
     # --- planning ------------------------------------------------------------
 
@@ -313,13 +357,20 @@ class AvailabilityEngine:
 
     def slots(self, date_from: date_cls, days=1):
         days = max(1, min(days, _booking_rule("MAX_AVAILABILITY_DAYS")))
+        self._prefetch_blocks(date_from, date_from + timedelta(days=days - 1))
         return {date_from + timedelta(days=n): self.slots_for_day(date_from + timedelta(days=n)) for n in range(days)}
 
     def plan_at(self, start: datetime):
-        """The plan for one exact start time, or None if it is not available."""
+        """The plan for one exact start time, or None if it is not available.
+
+        Raises BookingError with the salon's text when the day is closed for online booking.
+        """
         if not self._in_window(start):
             return None
         local = timezone.localtime(start, self.tz)
+        message = self.blocked_message(local.date())
+        if message:
+            raise BookingError(message)
         midnight = self._aware(local.date(), datetime.min.time())
         if not self.for_staff and (start - midnight) % self.step:
             return None
