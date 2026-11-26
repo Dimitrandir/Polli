@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from apps.bookings.availability import AvailabilityEngine, BookingError, ItemRequest
 from apps.catalog.models import Service
+from apps.salon.models import SalonInfo
 from apps.staff.models import Specialist, SpecialistService
 
 from .models import BookingProposal
@@ -82,7 +83,8 @@ TOOLS = [
         "name": "find_free_slots",
         "description": "Free start times for one or more services, from a date for up to 7 days. Each slot says "
         "which specialist does each service and the total price. Always call it before offering a time; never "
-        "guess free times.",
+        "guess free times. A day with online_booking_closed cannot be booked online: tell the visitor that text "
+        "and the salon's phone, and do not offer other times that day.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -255,9 +257,18 @@ def find_free_slots_tool(tool_input, **_):
         first_day = today
     engine = _engine(tool_input)
     result = []
+    phone = None
     for day, slots in engine.slots(first_day, days).items():
         entry = {"date": day.isoformat(), "weekday": WEEKDAYS[day.weekday()]}
-        if not slots:
+        closed = engine.blocked_message(day)
+        if closed:
+            if phone is None:
+                phone = SalonInfo.objects.order_by("pk").values_list("phone", flat=True).first() or ""
+            entry["slots"] = []
+            entry["online_booking_closed"] = closed
+            if phone:
+                entry["phone"] = phone
+        elif not slots:
             entry["slots"] = []
         else:
             # Spread the offered times over the day instead of only the first ones.
@@ -280,7 +291,10 @@ def propose_booking_tool(tool_input, *, conversation, created_proposals, **_):
     if timezone.is_naive(start):
         start = timezone.make_aware(start)
     engine = _engine(tool_input)
-    slot = engine.plan_at(start)
+    try:
+        slot = engine.plan_at(start)
+    except BookingError as exc:
+        raise ToolError(str(exc)) from exc
     if slot is None:
         raise ToolError("Този час не е свободен. Проверете отново с find_free_slots.")
     summary = describe_slot(slot)

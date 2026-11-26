@@ -125,4 +125,34 @@ describe("BookingWizard", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("вече не е свободен");
     expect(await screen.findByRole("heading", { name: "Кога ви е удобно?" })).toBeInTheDocument();
   });
+
+  it("greys out a day closed for online booking and offers a call", async () => {
+    const user = userEvent.setup();
+    const closed = {
+      ...availability,
+      phone: "0888 111 222",
+      days: availability.days.map((d, i) =>
+        i === 1 ? { ...d, blocked: "В този ден може да резервирате час само по телефона!" } : d,
+      ),
+    };
+    fetchMock.mockImplementation((url: string) => {
+      if (url === "/api/availability") return json(closed);
+      throw new Error(`unexpected ${url}`);
+    });
+
+    render(<BookingWizard initialCategories={categories} />);
+    await user.click(screen.getByRole("radio", { name: /Поли/ }));
+    await user.click(screen.getByRole("button", { name: /Боядисване на корени/ }));
+    await user.click(screen.getAllByRole("button", { name: /Продължи/ })[0]);
+    await screen.findByRole("button", { name: "09:00" });
+
+    // The mock gives the week of 19 October whatever week is asked; show that week.
+    await user.click(screen.getByRole("button", { name: "Следваща седмица" }));
+    const day = await screen.findByRole("button", { name: /20 октомври, само по телефона/ });
+    expect(day).toBeEnabled();
+    await user.click(day);
+    expect(await screen.findByText("В този ден може да резервирате час само по телефона!")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Обадете се: 0888 111 222/ })).toHaveAttribute("href", "tel:0888111222");
+    expect(screen.queryByRole("button", { name: "09:00" })).not.toBeInTheDocument();
+  });
 });

@@ -99,6 +99,7 @@ api_urlpatterns = [
     path("staff/catalog/groups/", team_catalog_api.GroupCreateView.as_view(), name="staff-group-create"),
     path("staff/catalog/groups/<int:pk>/", team_catalog_api.GroupDetailView.as_view(), name="staff-group"),
     path("staff/settings/", team_salon_api.SalonSettingsView.as_view(), name="staff-settings"),
+    path("staff/online-blocks/", team_salon_api.OnlineBlocksView.as_view(), name="staff-online-blocks"),
 ]
 
 urlpatterns = [

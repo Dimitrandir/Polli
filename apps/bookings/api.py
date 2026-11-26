@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 
 from apps.catalog.models import Service
 from apps.clients.services import link_by_email
+from apps.salon.models import SalonInfo
 from apps.staff.models import Specialist
 
 from .availability import AvailabilityEngine, BookingError, ItemRequest
@@ -138,7 +139,17 @@ class AvailabilityView(APIView):
         return Response(
             {
                 "timezone": str(timezone.get_current_timezone()),
-                "days": [{"date": day, "slots": SlotSerializer(slots, many=True).data} for day, slots in days.items()],
+                # For the call button on a day closed for online booking.
+                "phone": SalonInfo.objects.order_by("pk").values_list("phone", flat=True).first() or "",
+                "days": [
+                    {
+                        "date": day,
+                        "slots": SlotSerializer(slots, many=True).data,
+                        # The salon's text when this day cannot be booked online (book by phone), else null.
+                        "blocked": engine.blocked_message(day),
+                    }
+                    for day, slots in days.items()
+                ],
             }
         )
 

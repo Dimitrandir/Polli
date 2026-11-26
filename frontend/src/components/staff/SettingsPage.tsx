@@ -7,12 +7,16 @@ import { ApiError } from "@/lib/api";
 import { staffApi, type Hours, type SalonSettings } from "@/lib/staff-api";
 
 import { HoursEditor } from "./HoursEditor";
+import { OnlineBlocksSection } from "./OnlineBlocks";
 import { Field, inputClass } from "./Sheet";
 import { StaffPage, useStaffUser } from "./StaffNav";
 
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Нещо се обърка. Опитайте отново.");
 
-/** Salon settings: how far ahead and how soon clients book online, online cancellation, opening hours. */
+/**
+ * Salon settings: how far ahead and how soon clients book online, online cancellation, opening hours,
+ * and the days without online booking (each specialist closes their own; administrators the salon).
+ */
 export function SettingsPage() {
   const router = useRouter();
   const user = useStaffUser();
@@ -20,6 +24,7 @@ export function SettingsPage() {
   const [rules, setRules] = useState({ max_days_ahead: 0, min_notice_minutes: 0, cancellation_hours: 0 });
   const [hours, setHours] = useState<Hours[]>([]);
   const [hidePhones, setHidePhones] = useState(false);
+  const [blockMessage, setBlockMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -33,6 +38,7 @@ export function SettingsPage() {
     });
     setHours(data.opening_hours);
     setHidePhones(data.hide_client_phones);
+    setBlockMessage(data.online_block_message);
   }
 
   useEffect(() => {
@@ -52,7 +58,14 @@ export function SettingsPage() {
     setError(null);
     setNotice(null);
     try {
-      apply(await staffApi.updateSettings({ ...rules, hide_client_phones: hidePhones, opening_hours: hours }));
+      apply(
+        await staffApi.updateSettings({
+          ...rules,
+          hide_client_phones: hidePhones,
+          online_block_message: blockMessage,
+          opening_hours: hours,
+        }),
+      );
       setNotice("Настройките са запазени.");
     } catch (e) {
       setError(errorText(e));
@@ -74,9 +87,12 @@ export function SettingsPage() {
         )
       ) : (
         <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-4 pb-24">
+          {/* Saved on every tap; every specialist uses it for their own days. */}
+          <OnlineBlocksSection />
+          <div className="h-px bg-neutral-200" />
           {readOnly && (
             <p className="rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
-              Само администратор може да променя настройките.
+              Само администратор може да променя настройките по-долу.
             </p>
           )}
           <section className="space-y-3">
@@ -110,6 +126,17 @@ export function SettingsPage() {
                 disabled={readOnly}
                 value={rules.cancellation_hours}
                 onChange={number("cancellation_hours")}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Текст в ден без онлайн записване">
+              <textarea
+                rows={2}
+                maxLength={255}
+                disabled={readOnly}
+                value={blockMessage}
+                onChange={(e) => setBlockMessage(e.target.value)}
+                placeholder={saved.default_online_block_message}
                 className={inputClass}
               />
             </Field>

@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { CalendarX, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarX, ChevronLeft, ChevronRight, Phone } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -62,16 +62,21 @@ export function TimeStep({
     dispatch({ type: "setWeek", weekStart: addDays(state.weekStart, 7) });
   }, [loading, load.error, days, state.weekStart, dispatch]);
 
-  // Pick the first day with free times once a week has loaded.
+  // Pick the first day with free times once a week has loaded. A week the salon closed for online
+  // booking opens on its first closed day, so the client sees why and the phone number.
   useEffect(() => {
     if (loading || state.day) return;
-    const first = days.find((d) => d.slots.length > 0);
+    const first =
+      days.find((d) => d.slots.length > 0) ??
+      (autoAdvance.current <= 0 ? days.find((d) => d.blocked && d.date >= today) : undefined);
     if (first) dispatch({ type: "selectDay", day: first.date });
-  }, [loading, days, state.day, dispatch]);
+  }, [loading, days, state.day, dispatch, today]);
 
   const current = days.find((d) => d.date === state.day);
   const canGoBack = state.weekStart > startOfWeek(today);
   const weekHasSlots = days.some((d) => d.slots.length > 0);
+  const weekHasBlocked = days.some((d) => d.blocked && d.date >= today);
+  const phone = load.data?.phone ?? "";
 
   return (
     <section>
@@ -118,28 +123,40 @@ export function TimeStep({
           const selected = state.day === date;
           const parts = weekdayParts(date);
           const past = date < today;
+          // Closed for online booking: greyed out, but a tap shows why and the phone number.
+          const blocked = !loading && !past && !!day?.blocked;
           return (
             <button
               key={date}
-              disabled={loading || !count}
+              disabled={loading || (!count && !blocked)}
               onClick={() => dispatch({ type: "selectDay", day: date })}
               aria-pressed={selected}
-              aria-label={`${formatLongDate(date)}${count ? `, ${count} свободни часа` : ", няма свободни часове"}`}
+              aria-label={`${formatLongDate(date)}${
+                blocked ? ", само по телефона" : count ? `, ${count} свободни часа` : ", няма свободни часове"
+              }`}
+              data-blocked={blocked || undefined}
               className={clsx(
                 "relative flex flex-col items-center rounded-2xl py-3 transition-all sm:py-4",
                 selected
-                  ? "bg-ink text-bg shadow-[0_14px_30px_-16px_rgba(34,27,23,0.7)]"
-                  : count
-                    ? "bg-surface text-ink ring-1 ring-line hover:ring-accent/60"
-                    : "text-ink-soft/50",
+                  ? blocked
+                    ? "bg-ink-soft/25 text-ink ring-2 ring-ink-soft/40"
+                    : "bg-ink text-bg shadow-[0_14px_30px_-16px_rgba(34,27,23,0.7)]"
+                  : blocked
+                    ? "bg-ink-soft/10 text-ink-soft/60 hover:bg-ink-soft/15"
+                    : count
+                      ? "bg-surface text-ink ring-1 ring-line hover:ring-accent/60"
+                      : "text-ink-soft/50",
                 past && "opacity-40",
               )}
             >
               <span className="text-[11px] font-semibold uppercase tracking-wider opacity-70">{parts.weekday}</span>
               <span className="mt-1 text-xl font-semibold sm:text-2xl">{parts.day}</span>
               <span className="text-[11px] opacity-60">{parts.month}</span>
-              {!loading && count > 0 && (
-                <span className={clsx("mt-2 size-1.5 rounded-full", selected ? "bg-gold" : "bg-accent")} />
+              {blocked ? (
+                <Phone aria-hidden className="mt-1.5 size-3 opacity-70" />
+              ) : (
+                !loading &&
+                count > 0 && <span className={clsx("mt-2 size-1.5 rounded-full", selected ? "bg-gold" : "bg-accent")} />
               )}
             </button>
           );
@@ -157,8 +174,14 @@ export function TimeStep({
           <p role="alert" className="rounded-2xl bg-surface p-6 text-danger ring-1 ring-line">
             {load.error}
           </p>
+        ) : current?.blocked && current.date >= today ? (
+          <BlockedDay date={current.date} message={current.blocked} phone={phone} />
         ) : !weekHasSlots ? (
-          <EmptyWeek onNext={() => dispatch({ type: "setWeek", weekStart: addDays(state.weekStart, 7) })} />
+          weekHasBlocked ? (
+            <BlockedDay message={days.find((d) => d.blocked && d.date >= today)?.blocked ?? ""} phone={phone} />
+          ) : (
+            <EmptyWeek onNext={() => dispatch({ type: "setWeek", weekStart: addDays(state.weekStart, 7) })} />
+          )
         ) : (
           current && (
             <AnimatePresence mode="wait">
@@ -217,6 +240,25 @@ function SlotGrid({ slots, selected, onSelect }: { slots: Slot[]; selected: Slot
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** A day the salon closed for online booking: the salon's text and a button that calls the salon. */
+function BlockedDay({ date, message, phone }: { date?: string; message: string; phone: string }) {
+  return (
+    <div role="status" className="flex flex-col items-center rounded-3xl bg-surface px-6 py-12 text-center ring-1 ring-line">
+      <Phone className="size-8 text-accent" />
+      {date && <p className="mt-4 text-sm font-semibold text-ink-soft">{formatLongDate(date)}</p>}
+      <p className="mt-2 font-semibold text-ink">{message}</p>
+      {phone && (
+        <a
+          href={`tel:${phone.replace(/[^\d+]/g, "")}`}
+          className="mt-5 inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-accent-ink"
+        >
+          <Phone className="size-4" /> Обадете се: {phone}
+        </a>
+      )}
     </div>
   );
 }

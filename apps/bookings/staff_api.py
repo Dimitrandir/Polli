@@ -24,6 +24,7 @@ from apps.catalog.api import active_services
 from apps.catalog.models import Service
 from apps.clients.models import Client
 from apps.clients.phone import normalize_phone
+from apps.salon.blocks import DayBlocks, blocks_between
 from apps.staff.models import Specialist, SpecialistService, TimeOff
 from apps.staff.roles import can_manage_specialist, can_see_client_phones, is_salon_admin
 from apps.staff.schedule import aware, working_intervals
@@ -238,6 +239,18 @@ def _active_bookings(specialist_ids, start, end):
     )
 
 
+def _block(block):
+    return {"id": block.pk, "message": block.message} if block else None
+
+
+def _online_blocks(day_blocks):
+    """Who cannot be booked online that day: {"salon": block|None, "specialists": {id: block}}."""
+    return {
+        "salon": _block(day_blocks.salon),
+        "specialists": {str(sid): _block(b) for sid, b in day_blocks.specialists.items()},
+    }
+
+
 def _specialist_payload(s):
     return {"id": s.pk, "name": s.name, "color": s.color, "is_online_bookable": s.is_online_bookable}
 
@@ -256,6 +269,7 @@ class StaffDayView(APIView):
             {
                 "date": day.isoformat(),
                 "timezone": str(timezone.get_current_timezone()),
+                "online_blocks": _online_blocks(blocks_between(day, day).get(day, DayBlocks())),
                 "specialists": [{**_specialist_payload(s), **per_specialist[s.pk]} for s in specialists],
                 "bookings": _serialize(request, _active_bookings(ids, *_day_bounds(day)), many=True),
             }
@@ -279,6 +293,7 @@ class StaffWeekView(APIView):
         specialist = next((s for s in specialists if str(s.pk) == wanted), specialists[0])
         days = [monday + timedelta(days=n) for n in range(7)]
         bookings = _active_bookings([specialist.pk], _day_bounds(days[0])[0], _day_bounds(days[-1])[1])
+        blocks = blocks_between(days[0], days[-1])
         return Response(
             {
                 "start": monday.isoformat(),
@@ -286,7 +301,12 @@ class StaffWeekView(APIView):
                 "specialist": specialist.pk,
                 "specialists": [_specialist_payload(s) for s in specialists],
                 "days": [
-                    {"date": d.isoformat(), **_hours_and_time_off([specialist.pk], d)[specialist.pk]} for d in days
+                    {
+                        "date": d.isoformat(),
+                        **_hours_and_time_off([specialist.pk], d)[specialist.pk],
+                        "online_blocked": blocks.get(d, DayBlocks()).is_blocked(specialist.pk),
+                    }
+                    for d in days
                 ],
                 "bookings": _serialize(request, bookings, many=True),
             }
@@ -726,10 +746,15 @@ class StaffMonthView(APIView):
                     # 0 = free, 1 = full; a day off with bookings counts as full.
                     loads[sid] = round(min(1, minutes / working), 2) if working else 1
             result[day.isoformat()] = loads
+        blocks = blocks_between(first, next_month - timedelta(days=1))
         return Response(
             {
                 "month": first.isoformat(),
                 "specialists": [_specialist_payload(s) for s in specialists],
                 "days": result,
+                # date -> "salon" (the whole salon) or the ids of the specialists closed for online booking.
+                "online_blocks": {
+                    d.isoformat(): "salon" if b.salon else sorted(b.specialists) for d, b in sorted(blocks.items())
+                },
             }
         )
