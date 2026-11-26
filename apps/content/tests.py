@@ -121,12 +121,15 @@ class ImportSiteContentTests(TestCase):
         self.run_import()
         # An article marked "sync" follows its file: the server picks up the full text without --overwrite.
         Article.objects.filter(slug="poli-boteva-fitwell-omaznyavane-prez-lyatoto").update(body="кратък преразказ")
-        Article.objects.filter(slug="poli-boteva-profit-izvan-klisheto").update(body="редакция в админа")
+        Article.objects.filter(slug="8-ekspertni-nachina-za-zashtita-na-kosata-ot-presa-masha-seshoar").update(
+            body="редакция в админа"
+        )
         self.run_import()
         fitwell = Article.objects.get(slug="poli-boteva-fitwell-omaznyavane-prez-lyatoto")
         self.assertIn("Остани със здрава и красива коса", fitwell.body)
         # Articles without the flag keep what was edited in the admin.
-        self.assertEqual(Article.objects.get(slug="poli-boteva-profit-izvan-klisheto").body, "редакция в админа")
+        plain = Article.objects.get(slug="8-ekspertni-nachina-za-zashtita-na-kosata-ot-presa-masha-seshoar")
+        self.assertEqual(plain.body, "редакция в админа")
 
     def test_unpublished_article_is_hidden(self):
         self.run_import()
